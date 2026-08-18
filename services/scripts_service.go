@@ -1,0 +1,182 @@
+package services
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+
+	"github.com/dop251/goja"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/ystreamutils/YStreamUtils/logger"
+)
+
+type ScriptsService struct {
+	ctx           context.Context
+	eventBus      *EventBusService
+	pluginService *PluginService
+	mu            sync.RWMutex
+	cachedScripts map[string]*goja.Program
+	hostDtsPath string
+}
+
+func NewScriptsService(ctx context.Context, bus *EventBusService, plugins *PluginService) *ScriptsService {
+	return &ScriptsService{
+		ctx:           ctx,
+		eventBus:      bus,
+		pluginService: plugins,
+		cachedScripts: make(map[string]*goja.Program),
+		hostDtsPath: filepath.Join("frontend", "src", "lib", "types", "stream-host.d.ts"),
+	}
+}
+
+func (ss *ScriptsService) RegisterScriptAndBindToBus(topic string, scriptID string, rawJsString string) error {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+
+	program, err := goja.Compile(scriptID, rawJsString, true)
+	if err != nil {
+		return fmt.Errorf("javascript compilation syntax validation error: %w", err)
+	}
+
+	ss.cachedScripts[scriptID] = program
+
+	ss.eventBus.Subscribe(topic, func(event Event[map[string]any]) {
+		vm := goja.New()
+
+		vm.Set("payload", event.Payload)
+
+		hostObj := vm.NewObject()
+		vm.Set("host", hostObj)
+
+		hostObj.Set("log", func(level string, msg string) {
+			switch strings.ToLower(level) {
+			case "info":
+				logger.LogInfo("ScriptsService", fmt.Sprintf("Script %s: %s", scriptID, msg))
+			case "warn":
+				logger.LogWarn("ScriptsService", fmt.Sprintf("Script %s: %s", scriptID, msg))
+			case "error":
+				logger.LogError("ScriptsService", fmt.Sprintf("Script %s: %s", scriptID, msg))
+			default:
+				logger.Log("unknown", "ScriptsService", fmt.Sprintf("Script %s: %s", scriptID, msg))
+			}
+		})
+
+		vm.Set("_invokeWasmAction", func(pluginNs string, actionName string, call goja.FunctionCall) goja.Value {
+
+			// Convert JavaScript arguments into numeric register array slices
+			wasmArgs := make([]uint64, len(call.Arguments))
+			for i, arg := range call.Arguments {
+				wasmArgs[i] = uint64(arg.ToInteger())
+			}
+
+			res, err := ss.pluginService.InvokeAction(pluginNs, actionName, wasmArgs)
+			if err != nil {
+				panic(vm.NewTypeError("WebAssembly execution fault context: ", err.Error()))
+			}
+
+			if len(res) > 0 {
+				return vm.ToValue(res[0]) // Return computations directly back to the JS stack
+			}
+			return goja.Undefined()
+		})
+
+		// This generates a global 'plugins' proxy object that maps to all the compiled WebAssembly modules and their exported functions
+		bootstrap := ss.generateJavascriptPluginObjectType()
+		_, _ = vm.RunString(bootstrap)
+
+		_, err = vm.RunProgram(program)
+		if err != nil {
+			logger.LogError("ScriptsService", fmt.Sprintf("Script %s crashed: %v\n", scriptID, err))
+		}
+	})
+
+	return nil
+}
+
+func (ss *ScriptsService) generateJavascriptPluginObjectType() string {
+	var sb strings.Builder
+	sb.WriteString("const plugins = {};\n")
+
+	ss.pluginService.mu.RLock()
+	defer ss.pluginService.mu.RUnlock()
+
+	for ns, compiledModule := range ss.pluginService.compiledModules {
+		fmt.Fprintf(&sb, "plugins.%s = {\n", ns)
+
+		for _, exp := range compiledModule.ExportedFunctions() {
+			funcName := exp.Name()
+			if strings.HasPrefix(funcName, "_") || funcName == "main" || funcName == "memory" {
+				continue
+			}
+			fmt.Fprintf(&sb, "    %s: (...args) => _invokeWasmAction('%s', '%s', { Arguments: args.map(a => ({ ToInteger: () => a })) }),\n", funcName, ns, funcName)
+		}
+		sb.WriteString("};\n")
+	}
+
+	return sb.String()
+}
+
+func (ss *ScriptsService) GetDynamicPluginDefinitions() (string, error) {
+	var sb strings.Builder
+
+	sb.WriteString("/**\n * Automatically generated runtime plugin definitions.\n * Instantiated dynamically inside memory.\n */\n\n")
+	sb.WriteString("declare namespace plugins {\n")
+
+	ss.pluginService.mu.RLock()
+	defer ss.pluginService.mu.RUnlock()
+
+	for ns, compiledModule := range ss.pluginService.compiledModules {
+		fmt.Fprintf(&sb, "    namespace %s {\n", ns)
+
+		for _, exp := range compiledModule.ExportedFunctions() {
+			funcName := exp.Name()
+			if strings.HasPrefix(funcName, "_") || funcName == "main" || funcName == "memory" {
+				continue
+			}
+
+			paramCount := len(exp.ParamTypes())
+			paramsStr := make([]string, paramCount)
+			for i := range paramCount {
+				paramsStr[i] = fmt.Sprintf("arg%d: number", i)
+			}
+
+			returnType := "void"
+			if len(exp.ResultTypes()) > 0 {
+				returnType = "number"
+			}
+
+			fmt.Fprintf(&sb, "        function %s(%s): %s;\n", funcName, strings.Join(paramsStr, ", "), returnType)
+		}
+		sb.WriteString("    }\n\n")
+	}
+
+	sb.WriteString("}\n")
+	return sb.String(), nil
+}
+
+func (ss *ScriptsService) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
+	logger.LogInfo("ScriptsService", "Generating host types...")
+	ss.ctx = ctx
+
+	var sb strings.Builder
+	sb.WriteString("/**\n * Automatically generated by YStreamUtils Go Engine.\n * Core Host System API Bindings (Git-Tracked).\n */\n\n")
+	sb.WriteString("declare namespace host {\n")
+	sb.WriteString("    function log(level: 'info' | 'warn' | 'error', message: string): void;\n")
+	sb.WriteString("}\n")
+
+	err := os.MkdirAll(filepath.Dir(ss.hostDtsPath), 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create host types target folder path: %w", err)
+	}
+
+	err = os.WriteFile(ss.hostDtsPath, []byte(sb.String()), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to drop script-host definition file: %w", err)
+	}
+
+	logger.LogInfo("ScriptsService", "script-host.d.ts initialization completed.")
+	return nil
+}

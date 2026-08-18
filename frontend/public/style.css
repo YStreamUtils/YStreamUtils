@@ -1,0 +1,60 @@
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+}
+
+body{
+  margin: 0;
+  width: 100vw;
+  height: 100vh;
+}
+
+html {
+  background-color: light-dark(var(--neutral-200), var(--neutral-800));
+}
+
+:root {
+  --color-background: #ffffff;
+  --color-text: light-dark(#000000, #ffffff);
+  --color-brand: #9900ff;
+
+  --neutral-50: hsl(210, 0%, 95%);
+  --neutral-100: hsl(210, 0%, 90%);
+  --neutral-200: hsl(210, 0%, 80%);
+  --neutral-300: hsl(210, 0%, 70%);
+  --neutral-400: hsl(210, 0%, 60%);
+  --neutral-500: hsl(210, 0%, 50%);
+  --neutral-600: hsl(210, 0%, 40%);
+  --neutral-700: hsl(210, 0%, 30%);
+  --neutral-800: hsl(210, 0%, 20%);
+  --neutral-900: hsl(210, 0%, 10%);
+  --neutral-950: hsl(210, 0%, 5%);
+
+  --neutral-50-tint: color-mix(in srgb, var(--neutral-50), var(--color-brand) 8%);
+  --neutral-100-tint: color-mix(in srgb, var(--neutral-100), var(--color-brand) 8%);
+  --neutral-200-tint: color-mix(in srgb, var(--neutral-200), var(--color-brand) 8%);
+  --neutral-300-tint: color-mix(in srgb, var(--neutral-300), var(--color-brand) 8%);
+  --neutral-400-tint: color-mix(in srgb, var(--neutral-400), var(--color-brand) 8%);
+  --neutral-500-tint: color-mix(in srgb, var(--neutral-500), var(--color-brand) 8%);
+  --neutral-600-tint: color-mix(in srgb, var(--neutral-600), var(--color-brand) 8%);
+  --neutral-700-tint: color-mix(in srgb, var(--neutral-700), var(--color-brand) 8%);
+  --neutral-800-tint: color-mix(in srgb, var(--neutral-800), var(--color-brand) 8%);
+  --neutral-900-tint: color-mix(in srgb, var(--neutral-900), var(--color-brand) 8%);
+  --neutral-950-tint: color-mix(in srgb, var(--neutral-950), var(--color-brand) 8%);
+
+  color-scheme: light dark;
+
+  font-size: 16px;
+  font-weight: 400;
+
+  font-family: 'Jetbrains Mono', monospace;
+}
