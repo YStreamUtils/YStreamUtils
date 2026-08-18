@@ -13,13 +13,13 @@
   </div>
   <div class="controls">
     <button class="minimize" onclick={() => Window.Minimise()}>
-      <Minus size={18} />
+      <Minus size={14} />
     </button>
     <button class="maximize" onclick={() => Window.ToggleMaximise()}>
-      <Square size={18} />
+      <Square size={14} />
     </button>
     <button class="close" onclick={() => Window.Close()}>
-      <X size={18} />
+      <X size={14} />
     </button>
   </div>
 </div>
@@ -39,20 +39,20 @@
   main {
     width: stretch;
     height: stretch;
+    padding: 8px;
   }
   .modern-titlebar {
     -webkit-app-region: drag;
     display: flex;
     align-items: center;
     height: 40px;
-    background: var(--neutral-900-tint);
+    background: light-dark(var(--neutral-200-tint), var(--neutral-900-tint));
     border-bottom: 1px solid #1a1a1a;
     padding: 0 16px;
   }
 
   .title {
     flex: 1;
-    font-size: 13px;
     text-align: center;
     color: var(--color-text);
     user-select: none;
@@ -75,7 +75,7 @@
     height: 32px;
     border: none;
     background: transparent;
-    color: #e0e0e0;
+    color: var(--color-text);
     font-size: 14px;
     cursor: pointer;
     transition: background 0.2s;
