@@ -9,3 +9,7 @@ export const pages = {
 export const router = $state({
   current: "home" as keyof typeof pages
 });
+
+export const sidebar = $state({
+  isOpen: false
+});

@@ -17,6 +17,10 @@
   <option value="#9900ff">Purple</option>
   <option value="#00ff99">Green</option>
   <option value="#ff9900">Orange</option>
+  <option value="#ff0000">Red</option>
+  <option value="#0000ff">Blue</option>
+  <option value="#00ffff">Cyan</option>
+  <option value="#ff00ff">Magenta</option>
 </datalist>
 
 <select bind:value={theme}>

@@ -1,13 +1,17 @@
 <script lang="ts">
   import { Menu, Minus, Square, X } from "@lucide/svelte";
   import { Window } from "@wailsio/runtime";
+  import { sidebar } from "../navigation.svelte";
+
+  const { onMenuClicked } = $props<{ onMenuClicked: () => void }>();
 </script>
 
 <div class="modern-titlebar">
   <button
     class="btn sidebar-button"
-    popovertarget="sidebar"
-    popovertargetaction="toggle"
+    onclick={() => {
+      onMenuClicked();
+    }}
   >
     <Menu size={24} />
   </button>
@@ -41,12 +45,11 @@
     height: var(--space-10);
     background: light-dark(var(--neutral-200-tint), var(--neutral-900-tint));
     border-bottom: 1px solid #1a1a1a;
-    padding: 0 var(--space-4);
+    padding: 0 var(--space-2);
   }
 
   .title {
     flex: 1;
-    /*text-align: center;*/
     color: var(--color-text);
     user-select: none;
     margin-left: var(--space-4);
