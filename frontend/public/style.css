@@ -76,3 +76,18 @@ html {
 
   font-family: 'Jetbrains Mono', monospace;
 }
+
+.btn {
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background 0.2s;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+*{
+  margin: 0;
+  padding: 0;
+}
