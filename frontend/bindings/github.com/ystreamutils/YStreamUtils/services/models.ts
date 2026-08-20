@@ -10,4 +10,5 @@ export interface Settings {
 export interface UISettings {
     "Theme": string;
     "Color": string;
+    "FullCloseSidebar": boolean;
 }

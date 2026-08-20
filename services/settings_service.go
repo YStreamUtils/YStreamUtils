@@ -15,8 +15,9 @@ type Settings struct {
 }
 
 type UISettings struct {
-	Theme string `toml:"theme"`
-	Color string `toml:"color"`
+	Theme            string `toml:"theme"`
+	Color            string `toml:"color"`
+	FullCloseSidebar bool   `toml:"fullyCloseSidebar"`
 }
 
 var DefaultSettings = Settings{

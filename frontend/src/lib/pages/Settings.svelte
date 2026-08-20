@@ -36,10 +36,12 @@
         <div class="expander">
           <Expander label="Appearance" icon={Palette}>
             <ThemeDropdown bind:value={appState.settings.UISettings.Theme} />
-
             <hr class="settings-divider" />
-
             <ColorPicker bind:value={appState.settings.UISettings.Color} />
+            <hr class="settings-divider" />
+            <div class="setting-row">
+              <h1>Fully Close Sidebar?</h1>
+            </div>
           </Expander>
         </div>
       </div>
@@ -56,20 +58,6 @@
     padding: 2rem 1rem;
     box-sizing: border-box;
     border-radius: var(--space-1);
-    color: var(--color-text);
-
-    background-color: light-dark(
-      var(--color-background),
-      var(--neutral-950-tint)
-    );
-    background-image: light-dark(
-      none,
-      radial-gradient(
-        circle at 80% 80%,
-        color-mix(in srgb, var(--color-brand) 10%, transparent),
-        transparent 45%
-      )
-    );
   }
 
   .settings-container {
@@ -104,6 +92,15 @@
     margin: var(--space-4) var(--space-0);
     background-color: light-dark(var(--neutral-200), var(--neutral-800-tint));
     width: 100%;
+  }
+
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    font-size: 0.875rem;
+    color: var(--color-text);
   }
 
   .placeholder-content {

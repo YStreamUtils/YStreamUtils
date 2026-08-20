@@ -124,12 +124,7 @@
 
   .content-padding {
     padding: var(--space-4);
-    border-top: 1px solid var(--neutral-200);
-  }
-
-  @media (prefers-color-scheme: dark) {
-    .content-padding {
-      border-top-color: var(--neutral-800-tint);
-    }
+    border-top: 1px solid
+      light-dark(var(--neutral-200), var(--neutral-800-tint));
   }
 </style>

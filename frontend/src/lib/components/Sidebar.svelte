@@ -1,7 +1,7 @@
 <script lang="ts">
   import { router, type pages, sidebar } from "../navigation.svelte";
   import type { Component } from "svelte";
-  import { House, Settings, type LucideProps } from "@lucide/svelte";
+  import { House, Settings, Tv, type LucideProps } from "@lucide/svelte";
 
   function navigateTo(targetPage: keyof typeof pages) {
     router.current = targetPage;
@@ -11,6 +11,7 @@
 <div id="sidebar" class="sidebar">
   <nav class="top-nav">
     {@render navButton("home", "Home", House)}
+    {@render navButton("stream", "Stream", Tv)}
   </nav>
 
   <div class="bottom-nav">
@@ -28,7 +29,6 @@
     class="btn {extraClasses}"
     class:active={router.current === location}
     onclick={() => {
-      sidebar.isOpen = false;
       navigateTo(location);
     }}
   >
@@ -37,7 +37,7 @@
         <Icon size={16} />
       </span>
     {/if}
-    <p>{label}</p>
+    <p class:hidden={sidebar.isOpen}>{label}</p>
   </button>
 {/snippet}
 
@@ -58,7 +58,7 @@
   .bottom-nav {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--space-1_5);
   }
 
   .top-nav {
@@ -80,7 +80,7 @@
     grid-template-columns: 16px 1fr;
     align-items: center;
     justify-items: start;
-    gap: var(--space-2);
+    gap: var(--space-1_5);
     overflow: hidden;
     cursor: pointer;
 
@@ -132,6 +132,8 @@
 
   .icon-wrapper {
     flex-shrink: 0;
+    width: 16px;
+    height: 16px;
     justify-content: center;
     display: flex;
     align-items: center;
@@ -145,9 +147,9 @@
   }
 
   .sidebar button p {
-    margin: 0;
     font-size: 0.875rem;
     font-family: inherit;
     line-height: 1;
+    transition: 0.3s;
   }
 </style>
