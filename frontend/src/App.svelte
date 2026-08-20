@@ -63,7 +63,7 @@
     grid-template-columns: 64px 1fr;
   }
 
-  .app.container.fullClosed {
+  .app-container.fullClosed {
     grid-template-columns: 0px 1fr;
   }
 

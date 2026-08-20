@@ -4,6 +4,7 @@
   import { Shield, User, Palette } from "@lucide/svelte";
   import ThemeDropdown from "../components/ThemeDropdown.svelte";
   import { appState } from "../settings.svelte";
+  import { Switch } from "bits-ui";
 </script>
 
 {#if appState.settings}
@@ -41,6 +42,10 @@
             <hr class="settings-divider" />
             <div class="setting-row">
               <h1>Fully Close Sidebar?</h1>
+              <input
+                type="checkbox"
+                bind:checked={appState.settings.UISettings.FullCloseSidebar}
+              />
             </div>
           </Expander>
         </div>

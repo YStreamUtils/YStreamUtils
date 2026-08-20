@@ -22,8 +22,9 @@ type UISettings struct {
 
 var DefaultSettings = Settings{
 	UISettings: UISettings{
-		Theme: "dark",
-		Color: "#9900ff",
+		Theme:            "dark",
+		Color:            "#9900ff",
+		FullCloseSidebar: false,
 	},
 }
 

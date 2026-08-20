@@ -13,5 +13,5 @@ export const router = $state({
 });
 
 export const sidebar = $state({
-  isOpen: false
+  isOpen: true
 });

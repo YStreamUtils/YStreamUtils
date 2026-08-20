@@ -37,7 +37,7 @@
         <Icon size={16} />
       </span>
     {/if}
-    <p class:hidden={sidebar.isOpen}>{label}</p>
+    <p class:hidden={!sidebar.isOpen}>{label}</p>
   </button>
 {/snippet}
 
@@ -52,6 +52,7 @@
     flex-direction: column;
     box-sizing: border-box;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
   }
 
   .top-nav,
@@ -59,16 +60,13 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1_5);
+    overflow-x: hidden;
   }
 
   .top-nav {
     flex-grow: 1;
     min-height: 0;
     overflow-y: auto;
-  }
-
-  .bottom-nav {
-    flex-shrink: 0;
   }
 
   .sidebar button {
