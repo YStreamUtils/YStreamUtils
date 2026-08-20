@@ -4,12 +4,16 @@
 import * as EventBusService from "./eventbusservice.js";
 import * as PluginService from "./pluginservice.js";
 import * as ScriptsService from "./scriptsservice.js";
+import * as SettingsService from "./settingsservice.js";
 export {
     EventBusService,
     PluginService,
-    ScriptsService
+    ScriptsService,
+    SettingsService
 };
 
 export type {
-    EventHandler
+    EventHandler,
+    Settings,
+    UISettings
 } from "./models.js";

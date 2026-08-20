@@ -158,8 +158,18 @@ func (ss *ScriptsService) GetDynamicPluginDefinitions() (string, error) {
 }
 
 func (ss *ScriptsService) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
+	err := ss.generateHostFunctionTypes()
+	if err != nil {
+		logger.LogError("ScriptsService", err.Error())
+		return err
+	}
+
+
+	return nil
+}
+
+func (ss *ScriptsService) generateHostFunctionTypes() error {
 	logger.LogInfo("ScriptsService", "Generating host types...")
-	ss.ctx = ctx
 
 	var sb strings.Builder
 	sb.WriteString("/**\n * Automatically generated DO NOT EDIT\n */\n\n")

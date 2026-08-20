@@ -8,7 +8,7 @@
 
 <div class="modern-titlebar">
   <button
-    class="btn sidebar-button"
+    class="btn btn-center sidebar-button"
     onclick={() => {
       onMenuClicked();
     }}
@@ -20,18 +20,21 @@
   </div>
   <div class="controls">
     <button
-      class="btn btn-system btn-minimize"
+      class="btn btn-center btn-system btn-minimize"
       onclick={() => Window.Minimise()}
     >
       <Minus size={16} />
     </button>
     <button
-      class="btn btn-system btn-maximize"
+      class="btn btn-center btn-system btn-maximize"
       onclick={() => Window.ToggleMaximise()}
     >
       <Square size={16} />
     </button>
-    <button class="btn btn-system btn-close" onclick={() => Window.Close()}>
+    <button
+      class="btn btn-center btn-system btn-close"
+      onclick={() => Window.Close()}
+    >
       <X size={16} />
     </button>
   </div>

@@ -9,8 +9,8 @@ import (
 	"sync"
 
 	"github.com/tetratelabs/wazero"
-	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 	"github.com/tetratelabs/wazero/api"
+	"github.com/ystreamutils/YStreamUtils/logger"
 )
 
 type PluginService struct {
@@ -23,8 +23,6 @@ type PluginService struct {
 
 func NewPluginService(ctx context.Context, pluginsDir string) *PluginService {
 	r := wazero.NewRuntime(ctx)
-	
-	wasi_snapshot_preview1.MustInstantiate(ctx, r)
 
 	ps := &PluginService{
 		ctx:             ctx,
@@ -34,7 +32,7 @@ func NewPluginService(ctx context.Context, pluginsDir string) *PluginService {
 	}
 
 	_, _ = r.NewHostModuleBuilder("ystreamutils:plugin/host-functions").
-		NewFunctionBuilder().WithFunc(ps.LogToHost).Export("log"). 
+		NewFunctionBuilder().WithFunc(ps.LogToHost).Export("log").
 		Instantiate(ctx)
 
 	return ps
@@ -54,7 +52,16 @@ func (ps *PluginService) LogToHost(ctx context.Context, mod api.Module, level ui
 		logLabel = enumLevels[level]
 	}
 
-	fmt.Printf("[%s][%s]: %s\n", logLabel, pluginNamespace, string(bytes))
+	switch logLabel {
+		case "info":
+			logger.LogInfo(pluginNamespace, string(bytes))
+		case "warn":
+			logger.LogWarn(pluginNamespace, string(bytes))
+		case "error":
+			logger.LogError(pluginNamespace, string(bytes))
+		default:
+			logger.Log(logLabel, pluginNamespace, string(bytes))
+	}
 }
 
 func (ps *PluginService) LoadPlugins() error {
@@ -62,7 +69,10 @@ func (ps *PluginService) LoadPlugins() error {
 	defer ps.mu.Unlock()
 
 	_ = os.MkdirAll(ps.pluginsDir, 0755)
-
+	for k := range ps.compiledModules {
+		delete(ps.compiledModules, k)
+	}
+	
 	return filepath.Walk(ps.pluginsDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err

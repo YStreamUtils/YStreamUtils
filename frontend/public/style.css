@@ -85,13 +85,25 @@ html {
 }
 
 .btn {
-  color: var(--color-text);
-  cursor: pointer;
-  transition: background 0.2s;
-  display: flex;
-  flex-direction: row;
+  display: inline-flex;
   align-items: center;
+  color: var(--color-text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background var(--transition-speed, 0.2s), border-color var(--transition-speed, 0.2s);
+}
+
+.btn-center {
   justify-content: center;
+}
+
+.btn-between {
+  justify-content: space-between;
+}
+
+.btn-start {
+  justify-content: flex-start;
 }
 
 * {
@@ -108,10 +120,8 @@ body,
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  /* Strict window boundary: absolutely no frame scrollbars */
 }
 
-/* Treat every block as a rigid box whose padding stays inside its border */
 *,
 *::before,
 *::after {

@@ -44,7 +44,7 @@
 <style>
   .sidebar {
     border: none;
-    background: light-dark(var(--neutral-300-tint), var(--neutral-700-tint));
+    background: light-dark(var(--neutral-100-tint), var(--neutral-900-tint));
     color: var(--color-text);
     padding: var(--space-1_5);
     height: 100%;
@@ -73,23 +73,81 @@
 
   .sidebar button {
     width: 100%;
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--space-1);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--space-1_5);
     justify-content: flex-start;
     display: grid;
     grid-template-columns: 16px 1fr;
+    align-items: center;
     justify-items: start;
-    gap: var(--space-1_5);
+    gap: var(--space-2);
     overflow: hidden;
+    cursor: pointer;
 
-    background: rgba(0, 0, 0, 0.1);
-    border: var(--color-text) 1px solid;
+    background: transparent;
+    border: 1px solid transparent;
     color: var(--color-text);
+
+    transition:
+      background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      transform 0.1s ease;
+  }
+
+  .sidebar button:hover {
+    background: light-dark(
+      rgba(0, 0, 0, 0.03),
+      color-mix(in srgb, var(--neutral-800-tint) 25%, transparent)
+    );
+    border-color: light-dark(
+      rgba(0, 0, 0, 0.15),
+      color-mix(in srgb, var(--color-brand) 40%, transparent)
+    );
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .sidebar button.active {
+    background: light-dark(
+      rgba(255, 255, 255, 0.4),
+      color-mix(in srgb, var(--neutral-950) 40%, transparent)
+    );
+    border-color: var(--color-brand);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .sidebar button.active:hover {
+    background: light-dark(
+      rgba(255, 255, 255, 0.6),
+      color-mix(in srgb, var(--neutral-950) 55%, transparent)
+    );
+    border-color: var(--color-brand);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--color-brand) 20%, transparent);
+  }
+
+  .sidebar button:active {
+    transform: scale(0.98);
   }
 
   .icon-wrapper {
     flex-shrink: 0;
     justify-content: center;
     display: flex;
+    align-items: center;
+    color: light-dark(var(--neutral-500), var(--neutral-400-tint));
+    transition: color 0.2s ease;
+  }
+
+  .sidebar button:hover .icon-wrapper,
+  .sidebar button.active .icon-wrapper {
+    color: var(--color-brand);
+  }
+
+  .sidebar button p {
+    margin: 0;
+    font-size: 0.875rem;
+    font-family: inherit;
+    line-height: 1;
   }
 </style>
