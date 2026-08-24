@@ -5,8 +5,9 @@ import "log/slog"
 type Platform string
 
 const (
-	Youtube Platform = "youtube"
-	Twitch  Platform = "twitch"
+	PlatformTwitch  Platform = "twitch"
+	PlatformYouTube Platform = "youtube"
+	PlatformKick    Platform = "kick"
 )
 
 func (p Platform) String() string {

@@ -85,7 +85,7 @@
 <div class="stream-grid">
   <!-- Left Column: Unified Custom Live Chat Feed -->
   <div class="grid-left chat-column">
-    <div class="chat-header">Unified Chat Stream</div>
+    <div class="chat-header">Chat</div>
 
     <div class="chat-viewport" bind:this={scrollContainer}>
       {#each messages as msg}
@@ -126,10 +126,10 @@
 
 <style>
   .stream-grid {
+    display: grid;
+    grid-template-columns: [sidebar] 600px [content] minmax(0, 1fr);
     width: 100%;
     height: 100%;
-    display: grid;
-    grid-template-columns: 600px 1fr;
     border: 1px solid transparent;
     border-radius: var(--space-4);
   }
@@ -156,12 +156,12 @@
   }
 
   .chat-viewport {
-    flex: 1;
-    overflow-y: auto;
-    padding: var(--space-3, 12px);
     display: flex;
+    flex: 1;
     flex-direction: column;
     gap: var(--space-2, 8px);
+    padding: var(--space-3, 12px);
+    overflow-y: auto;
   }
 
   .chat-row {
@@ -170,43 +170,44 @@
   }
 
   .chat-author {
-    color: var(--accent, #ff4a4a);
-    font-weight: bold;
     margin-right: var(--space-1, 4px);
+    font-weight: bold;
+    color: var(--accent, #ff4a4a);
   }
 
   .player-column {
     display: flex;
     flex-direction: column;
     gap: var(--space-4, 16px);
+    height: 100%;
     padding: var(--space-4, 16px);
     overflow-y: auto;
-    height: 100%;
   }
 
   .player-card {
-    width: 100%;
     display: flex;
     flex-direction: column;
+    width: 100%;
+    overflow: hidden;
     background: var(--neutral-900, #111);
     border-radius: 4px;
-    overflow: hidden;
   }
 
   .player-footer {
     display: flex;
-    justify-content: space-between;
+    flex-wrap: wrap;
     align-items: center;
+    justify-content: space-between;
     padding: var(--space-2, 8px) var(--space-3, 12px);
     font-size: 12px;
     color: var(--text-muted, #888);
   }
 
   .footer-viewers {
+    padding: 2px 8px;
     font-weight: bold;
     color: var(--text-normal, #e0e0e0);
     background: var(--neutral-800, #222);
-    padding: 2px 8px;
     border-radius: 4px;
   }
 </style>

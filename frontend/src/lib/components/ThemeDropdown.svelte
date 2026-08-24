@@ -7,6 +7,7 @@
   }
 
   let { value = $bindable("") }: Props = $props();
+  let isOpen = $state(false);
 
   const themes = [
     { value: "light", label: "Light", icon: Sun },
@@ -22,11 +23,18 @@
 
 <Dropdown id="theme-menu" width="8.5rem">
   {#snippet trigger()}
-    <button class="btn btn-between select-trigger" popovertarget="theme-menu">
-      <span class="active-group"
-        ><ActiveIcon size={14} /> {activeTheme.label}</span
-      >
-      <ChevronDown size={14} opacity="0.7" />
+    <button 
+      class="btn btn-between select-trigger" 
+      popovertarget="theme-menu"
+      onclick={() => isOpen = !isOpen}
+    >
+      <span class="active-group">
+        <ActiveIcon size={14} /> 
+        {activeTheme.label}
+      </span>
+      <span class="chevron" class:rotated={isOpen}>
+        <ChevronDown size={14} opacity="0.7" />
+      </span>
     </button>
   {/snippet}
 
@@ -38,6 +46,7 @@
         class:selected={value === theme.value}
         onclick={() => {
           value = theme.value;
+          isOpen = false;
           close();
         }}
       >
@@ -50,30 +59,55 @@
 
 <style>
   .select-trigger {
-    font-size: 0.75rem;
     gap: var(--space-4);
     min-width: 8.5rem;
     padding: var(--space-1_5) var(--space-3);
+    font-size: 0.75rem;
     border: 1px solid light-dark(var(--neutral-200), var(--neutral-800-tint));
     border-radius: var(--space-1);
   }
+
   .active-group {
     display: flex;
-    align-items: center;
+    flex-wrap: wrap;
     gap: var(--space-2);
+    align-items: center;
   }
+
+  .chevron {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .chevron.rotated {
+    transform: rotate(180deg);
+  }
+
   .menu-btn {
-    font-size: 0.75rem;
     gap: var(--space-2);
     width: 100%;
     padding: var(--space-2) var(--space-3);
+    font-size: 0.75rem;
+    color: var(--_menu-color, inherit);
+    background-color: var(--_menu-bg, transparent);
     border-radius: var(--space-1);
   }
-  .menu-btn:hover {
-    background-color: light-dark(var(--neutral-100), var(--neutral-800-tint));
-  }
+
   .menu-btn.selected {
-    background-color: var(--color-brand);
-    color: #fff;
+    --_menu-color: #fff;
+    --_menu-bg: var(--color-brand);
+  }
+
+  @media (hover: hover) {
+    .menu-btn:hover {
+      background-color: light-dark(var(--neutral-100), var(--neutral-800-tint));
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .chevron {
+      transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
   }
 </style>

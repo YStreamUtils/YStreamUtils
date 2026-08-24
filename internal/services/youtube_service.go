@@ -64,7 +64,7 @@ func (y *YouTubeService) ConnectChat(ctx context.Context, videoId string) error 
 	}
 
 	tokenSource := TokenSourceFunc(func() (*oauth2.Token, error) {
-		return y.vault.GetValidSession(models.Youtube)
+		return y.vault.GetValidSession(models.PlatformYouTube)
 	})
 
 	rpcCreds := oauth.TokenSource{
@@ -275,25 +275,50 @@ func (y *YouTubeService) processIncomingItem(item *youtube_protobuf.LiveChatMess
 	switch item.Snippet.GetType() {
 
 	case youtube_protobuf.LiveChatMessageSnippet_TypeWrapper_SUPER_CHAT_EVENT:
-		msg := &models.StreamChatMessage{
-			MessageID: item.GetId(),
-			Author:    "💝 SUPERCHAT: " + author,
-			Message:   fmt.Sprintf("%s sent a super chat!", item.Snippet.GetDisplayMessage()),
-			Timestamp: time.Now().Unix(),
+		scMsg := models.StreamSuperchatMessage{
+			BaseUserData: models.BaseUserData{
+				Message:     item.Snippet.GetDisplayMessage(),
+				MessageID:   item.GetId(),
+				Author:      author,
+				AuthorID:    *item.GetSnippet().AuthorChannelId,
+				AuthorColor: "#ffd700",
+			},
+			Amount: *item.Snippet.GetSuperChatDetails().AmountDisplayString,
 		}
-		event.Emit("stream:chat_msg", msg)
-		event.Emit("stream:youtube:superchat_message", msg)
+
+		event.Emit("stream:chat_message", models.NewStreamEvent("superchat", models.PlatformYouTube, scMsg))
 
 	case youtube_protobuf.LiveChatMessageSnippet_TypeWrapper_TEXT_MESSAGE_EVENT:
 		fallthrough
 
 	default:
-		msg := &models.StreamChatMessage{
-			MessageID: item.GetId(),
-			Author:    author,
-			Message:   item.Snippet.GetDisplayMessage(),
-			Timestamp: time.Now().Unix(),
+		chatMsg := models.StreamChatMessage{
+			BaseUserData: models.BaseUserData{
+				Message:     item.Snippet.GetDisplayMessage(),
+				MessageID:   item.GetId(),
+				Author:      author,
+				AuthorID:    *item.GetSnippet().AuthorChannelId,
+				AuthorColor: GetYouTubeUserColor(item),
+			},
 		}
-		event.Emit("stream:chat_msg", msg)
+
+		event.Emit("stream:chat_message", models.NewStreamEvent("chat", models.PlatformYouTube, chatMsg))
 	}
+
+}
+
+func GetYouTubeUserColor(item *youtube_protobuf.LiveChatMessage) string {
+	if item.AuthorDetails.GetIsChatOwner() {
+		return "#e6b800"
+	}
+
+	if item.AuthorDetails.GetIsChatModerator() {
+		return "#5e97ff"
+	}
+
+	if item.AuthorDetails.GetIsChatSponsor() {
+		return "#107c10"
+	}
+
+	return ""
 }

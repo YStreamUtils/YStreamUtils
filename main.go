@@ -44,7 +44,7 @@ func setupServices() []application.Service {
 	}
 
 	authService := services.NewAuthService(vaultService)
-	authService.RegisterProfileDriver(models.Youtube, youtubeService)
+	authService.RegisterProfileDriver(models.PlatformYouTube, youtubeService)
 
 	metricsService := services.NewMetricsService()
 	metricsService.RegisterDriver("youtube", youtubeService)

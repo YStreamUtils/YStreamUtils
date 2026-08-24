@@ -14,45 +14,45 @@
   } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/services/authservice";
   import { Platform } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/models";
 
-  let isLoadingProfile = $state(true);
-  let isLoggingIn = $state(false);
+  let isLoadingProfile = $state<Partial<Record<Platform, boolean>>>({});
+  let isLoggingIn = $state<Partial<Record<Platform, boolean>>>({});
 
   onMount(async () => {
-    await fetchProfile();
+    Object.values(Platform).forEach(async (p) => {
+      await fetchProfile(p);
+    });
   });
 
-  async function fetchProfile() {
-    isLoadingProfile = true;
+  async function fetchProfile(platform: Platform) {
+    isLoadingProfile[platform] = true;
     try {
-      profiles["youtube"] = await GetProfile(Platform.Youtube);
+      profiles[platform] = await GetProfile(Platform.PlatformYouTube);
     } catch (err) {
       console.error("Failed to recover profile:", err);
     } finally {
-      isLoadingProfile = false;
+      isLoadingProfile[platform] = false;
     }
   }
 
-  async function handleConnect() {
-    isLoggingIn = true;
+  async function handleConnect(platform: Platform) {
+    isLoggingIn[platform] = true;
     try {
-      const success = await LoginPlatform(Platform.Youtube);
+      const success = await LoginPlatform(Platform.PlatformYouTube);
       if (success) {
-        await fetchProfile();
+        await fetchProfile(platform);
       }
     } catch (err) {
       alert(`Authentication failed: ${err}`);
     } finally {
-      isLoggingIn = false;
+      isLoggingIn[platform] = false;
     }
   }
 
-  // Define platforms from OAuth configs
-  const platforms = [
-    {
-      id: "youtube",
-      title: "YouTube",
-    },
-  ];
+  const platforms: Partial<Record<Platform, string>> = {
+    [Platform.PlatformYouTube]: "YouTube",
+    [Platform.PlatformTwitch]: "Twitch",
+    [Platform.PlatformKick]: "Kick",
+  };
 </script>
 
 {#if appState.settings}
@@ -68,14 +68,16 @@
       <div class="settings-stack">
         <div class="expander">
           <Expander label="Linked Accounts" icon={User}>
-            {#each platforms as platform}
-              <SettingsRow title={platform.title}>
+            {#each Object.entries(platforms) as [platform, display]}
+              {@const platformKey = platform as Platform}
+
+              <SettingsRow title={display}>
                 <ConnectedAccount
-                  platform={platform.id}
-                  {isLoadingProfile}
-                  profile={profiles[platform.id]}
-                  {isLoggingIn}
-                  onConnect={handleConnect}
+                  platform={platformKey}
+                  isLoadingProfile={isLoadingProfile[platformKey] || false}
+                  profile={profiles[platformKey]}
+                  isLoggingIn={isLoggingIn[platformKey] || false}
+                  onConnect={() => handleConnect(platformKey)}
                 />
               </SettingsRow>
             {/each}
@@ -117,32 +119,33 @@
 
 <style>
   .settings-page {
+    box-sizing: border-box;
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     width: 100%;
     height: 100%;
     padding: 2rem 1rem;
-    box-sizing: border-box;
     border-radius: var(--space-1);
   }
 
   .settings-container {
-    width: 100%;
-    max-width: 44rem;
     display: flex;
     flex-direction: column;
     gap: 2rem;
+    width: 100%;
+    max-width: 44rem;
   }
 
   .settings-header h1 {
+    margin: 0 0 0.5rem;
     font-size: 1.75rem;
     font-weight: 600;
-    margin: 0 0 0.5rem 0;
   }
 
   .settings-desc {
-    font-size: 0.875rem;
     margin: 0;
+    font-size: 0.875rem;
     color: light-dark(var(--neutral-600), var(--neutral-400-tint));
   }
 
@@ -153,38 +156,44 @@
   }
 
   .settings-divider {
-    border: none;
+    width: 100%;
     height: 1px;
     margin: var(--space-4) var(--space-0);
     background-color: light-dark(var(--neutral-200), var(--neutral-800-tint));
-    width: 100%;
+    border: none;
   }
 
   .expander {
     background: light-dark(
-      rgba(245, 245, 247, 0.7),
+      rgb(245 245 247 / 70%),
       color-mix(in srgb, var(--neutral-950) 65%, transparent)
     );
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
     border: 1px solid
       light-dark(
-        rgba(0, 0, 0, 0.08),
+        rgb(0 0 0 / 8%),
         color-mix(in srgb, var(--neutral-800-tint) 40%, transparent)
       );
     border-radius: var(--space-2);
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03);
-    transition:
-      border-color 0.2s ease,
-      box-shadow 0.2s ease;
+    box-shadow: 0 4px 30px rgb(0 0 0 / 3%);
+    backdrop-filter: blur(20px);
   }
 
-  .expander:hover {
-    border-color: light-dark(
-      rgba(0, 0, 0, 0.15),
-      color-mix(in srgb, var(--color-brand) 40%, transparent)
-    );
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.06);
+  @media (prefers-reduced-motion: no-preference) {
+    .expander {
+      transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+    }
+  }
+
+  @media (hover: hover) {
+    .expander:hover {
+      border-color: light-dark(
+        rgb(0 0 0 / 15%),
+        color-mix(in srgb, var(--color-brand) 40%, transparent)
+      );
+      box-shadow: 0 4px 30px rgb(0 0 0 / 6%);
+    }
   }
 
   .toggle-checkbox {

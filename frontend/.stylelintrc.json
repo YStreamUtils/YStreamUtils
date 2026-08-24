@@ -1,0 +1,28 @@
+{
+    "extends": [
+        "stylelint-config-standard",
+        "stylelint-config-recess-order",
+        "stylelint-config-html/svelte",
+        "stylelint-plugin-defensive-css/configs/recommended"
+    ],
+    "plugins": [
+        "stylelint-declaration-block-no-ignored-properties",
+        "@stylistic/stylelint-plugin"
+    ],
+    "rules": {
+        "plugin/declaration-block-no-ignored-properties": true,
+        "max-nesting-depth": 3,
+        "selector-max-specificity": "0,3,0",
+        "custom-property-pattern": "^[a-z0-9-_]+$",
+        "@stylistic/indentation": 2,
+        "@stylistic/block-closing-brace-newline-after": "always",
+        "selector-pseudo-class-no-unknown": [
+            true,
+            {
+                "ignorePseudoClasses": [
+                    "global"
+                ]
+            }
+        ]
+    }
+}

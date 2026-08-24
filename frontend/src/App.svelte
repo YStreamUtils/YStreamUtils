@@ -38,11 +38,11 @@
   <div
     class="app-container"
     class:closed={!sidebar.isOpen}
-    class:fullClosed={!sidebar.isOpen &&
+    class:full-closed={!sidebar.isOpen &&
       appState.settings?.UISettings.FullCloseSidebar}
   >
     <Sidebar />
-    <main>
+    <main class="main-content">
       <ActiveScreen />
     </main>
   </div>
@@ -58,24 +58,23 @@
 
   .app-container {
     display: grid;
-    grid-template-columns: 200px 1fr;
     flex: 1;
+    grid-template-columns: [sidebar] 200px [main] minmax(0, 1fr);
     min-height: 0;
-    transition: grid-template-columns 0.3s ease-in-out;
+    
   }
 
   .app-container.closed {
-    grid-template-columns: 64px 1fr;
+    grid-template-columns: [sidebar] 64px [main] minmax(0, 1fr);
   }
 
-  .app-container.fullClosed {
-    grid-template-columns: 0px 1fr;
+  .app-container.full-closed {
+    grid-template-columns: [sidebar] 0 [main] minmax(0, 1fr);
   }
 
-  main {
+  .main-content {
     padding: var(--space-2);
     overflow-y: auto;
-
     background-color: light-dark(
       var(--color-background),
       var(--neutral-950-tint)
@@ -88,5 +87,12 @@
         transparent 45%
       )
     );
+    background-repeat: no-repeat;
+  }
+
+  @media(prefers-reduced-motion: no-preference){
+    .app-container{
+      transition: grid-template-columns 0.3s ease-in-out;
+    }
   }
 </style>

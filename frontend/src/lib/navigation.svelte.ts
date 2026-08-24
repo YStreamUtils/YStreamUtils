@@ -9,9 +9,13 @@ export const pages: Record<string, Component> = {
   stream: Stream
 };
 
-export const router = $state({
+export const router = $state<{current: keyof typeof pages}>({
   current: sessionStorage.getItem("route") || "home"
 });
+
+export function navigateTo(route: string) {
+  router.current = route;
+}
 
 export const sidebar = $state({
   isOpen: JSON.parse(sessionStorage.getItem("sidebarOpen") || "true")

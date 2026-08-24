@@ -17,6 +17,6 @@ export function StartChatStream(platform: string, channelID: string): $Cancellab
     return $Call.ByID(3931500797, platform, channelID);
 }
 
-export function StopChatPipeline(platform: string, channelID: string): $CancellablePromise<void> {
-    return $Call.ByID(651163865, platform, channelID);
+export function StopChatStream(platform: string, channelID: string): $CancellablePromise<void> {
+    return $Call.ByID(3469593695, platform, channelID);
 }

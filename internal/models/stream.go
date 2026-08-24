@@ -1,27 +1,42 @@
 package models
 
-const (
-	EventTypeChat          = "chat"
-	EventTypeMetricUpdate  = "metrics"
-	EventTypeStatusOffline = "offline"
-)
+import "time"
 
-type StreamMetrics struct {
-	ConcurrentViewers int64 `json:"concurrentViewers"`
+type StreamEventEnvelope struct {
+	Event     string     `json:"event"`
+	Platform  Platform   `json:"platform"`
+	Timestamp *time.Time `json:"timestamp,omitempty"`
+	Data      any        `json:"data"`
+}
+
+func NewStreamEvent(event string, platform Platform, data any) StreamEventEnvelope {
+	now := time.Now()
+	return StreamEventEnvelope{
+		Event:     event,
+		Platform:  platform,
+		Timestamp: &now,
+		Data:      data,
+	}
+}
+
+type BaseUserData struct {
+	AuthorID    string `json:"authorId"`
+	Author      string `json:"author"`
+	AuthorColor string `json:"authorColor"`
+	MessageID   string `json:"messageId"`
+	Message     string `json:"message"`
 }
 
 type StreamChatMessage struct {
-	MessageID string `json:"messageId"`
-	Author    string `json:"author"`
-	AuthorID  string `json:"authorId"`
-	Message   string `json:"message"`
-	Timestamp int64  `json:"timestamp"`
+	BaseUserData
 }
 
-type StreamEvent struct {
-	Platform Platform           `json:"platform"`
-	ChatID   string             `json:"chatId"`
-	Type     string             `json:"type"`
-	Message  *StreamChatMessage `json:"message,omitempty"`
-	Metrics  *StreamMetrics     `json:"metrics,omitempty"`
+type StreamSuperchatMessage struct {
+	BaseUserData
+	Amount string `json:"amount"`
+}
+
+type StreamCheerMessage struct {
+	BaseUserData
+	Bits int64 `json:"bits"`
 }

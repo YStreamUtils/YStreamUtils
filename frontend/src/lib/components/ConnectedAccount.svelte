@@ -48,22 +48,23 @@
 <style>
   .account-connected {
     display: flex;
-    align-items: center;
+    flex-wrap: wrap;
     gap: 12px;
+    align-items: center;
   }
 
   .account-avatar {
     width: 36px;
     height: 36px;
-    border-radius: 50%;
     object-fit: cover;
     border: 1px solid #333;
+    border-radius: 50%;
   }
 
   .account-status {
     font-size: 12px;
-    color: #4caf50;
     font-weight: bold;
+    color: #4caf50;
   }
 
   .placeholder-content {
@@ -73,12 +74,12 @@
   }
 
   .btn-connect {
-    background: #ff4a4a;
-    color: white;
-    border: none;
     padding: 8px 16px;
-    border-radius: 4px;
     font-weight: bold;
+    color: white;
     cursor: pointer;
+    background: #ff4a4a;
+    border: none;
+    border-radius: 4px;
   }
 </style>

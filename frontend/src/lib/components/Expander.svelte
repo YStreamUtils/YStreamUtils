@@ -54,9 +54,9 @@
   .expander-card {
     display: block;
     width: 100%;
+    overflow: hidden;
     border: 1px solid var(--neutral-200);
     border-radius: var(--space-1_5);
-    overflow: hidden;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -67,28 +67,29 @@
 
   .trigger-btn {
     display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
     align-items: center;
     width: 100%;
-    gap: var(--space-3);
     padding: var(--space-4);
+    font-family: inherit;
+    font-size: 0.875rem;
+    color: var(--color-text);
+    text-align: left;
     cursor: pointer;
     background: transparent;
     border: none;
-    text-align: left;
-    font-size: 0.875rem;
-    font-family: inherit;
-    color: var(--color-text);
   }
 
   .leading-icon,
   .chevron {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
   }
 
   .chevron {
     margin-left: auto;
-    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .chevron.rotated {
@@ -97,7 +98,6 @@
 
   .collapsible-content {
     overflow: hidden;
-    transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   :global(.collapsible-content[data-state="open"]) {
@@ -112,9 +112,6 @@
     opacity: 0;
     transform: scale(0.97);
     transform-origin: top center;
-    transition:
-      opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-      transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
   .content-wrapper.visible {
@@ -126,5 +123,21 @@
     padding: var(--space-4);
     border-top: 1px solid
       light-dark(var(--neutral-200), var(--neutral-800-tint));
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .chevron {
+      transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .collapsible-content {
+      transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .content-wrapper {
+      transition:
+        opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
   }
 </style>

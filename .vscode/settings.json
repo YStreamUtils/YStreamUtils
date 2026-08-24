@@ -1,0 +1,12 @@
+{
+    "stylelint.workingDirectories": [
+        "./frontend"
+    ],
+    "stylelint.validate": [
+        "css",
+        "svelte"
+    ],
+    "editor.codeActionsOnSave": {
+        "source.fixAll.stylelint": "explicit"
+    }
+}

@@ -8,8 +8,8 @@ import (
 )
 
 var OAuthConfigs = map[models.Platform]*oauth2.Config{
-	models.Youtube: YoutubeOAuthConfig,
-	models.Twitch:  TwitchOAuthConfig,
+	models.PlatformYouTube: YoutubeOAuthConfig,
+	models.PlatformTwitch:  TwitchOAuthConfig,
 }
 
 var YoutubeOAuthConfig = &oauth2.Config{

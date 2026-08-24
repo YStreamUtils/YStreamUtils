@@ -42,30 +42,34 @@
 
 <style>
   .modern-titlebar {
-    -webkit-app-region: drag;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     height: var(--space-10);
-    background: light-dark(var(--neutral-200-tint), var(--neutral-900-tint));
-    border-bottom: 1px solid #1a1a1a;
     padding: 0 var(--space-2);
     padding-left: var(--space-4);
+    
+    /* stylelint-disable-next-line defensive-css/no-user-select-none */
+    user-select: none;
+    background: light-dark(var(--neutral-200-tint), var(--neutral-900-tint));
+    border-bottom: 1px solid #1a1a1a;
+    -webkit-app-region: drag;
   }
 
   .title {
     flex: 1;
-    color: var(--color-text);
-    user-select: none;
     margin-left: var(--space-4);
+    color: var(--color-text);
   }
 
   .title span {
-    color: var(--color-brand);
     font-weight: 700;
+    color: var(--color-brand);
   }
 
   .controls {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-0_5);
   }
 
@@ -76,6 +80,7 @@
     background: transparent;
     border: none;
   }
+
   .sidebar-button {
     -webkit-app-region: no-drag;
     width: var(--space-8);
@@ -84,13 +89,31 @@
     border: none;
   }
 
-  .controls button:hover,
-  .sidebar-button:hover {
-    background: rgba(255, 255, 255, 0.1);
+  /* Scoped hover interactions to require standard user motion parameters */
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .controls button:hover,
+    .sidebar-button:hover {
+      background: rgb(255 255 255 / 10%);
+      transition: background 0.15s ease;
+    }
+
+    .controls .btn-close:hover {
+      color: white;
+      background: #e81123;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
   }
 
-  .controls .btn-close:hover {
-    background: #e81123;
-    color: white;
+  /* Fallback static styles for users with prefers-reduced-motion enabled */
+  @media (hover: hover) and (prefers-reduced-motion: reduce) {
+    .controls button:hover,
+    .sidebar-button:hover {
+      background: rgb(255 255 255 / 10%);
+    }
+
+    .controls .btn-close:hover {
+      color: white;
+      background: #e81123;
+    }
   }
 </style>

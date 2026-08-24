@@ -7,8 +7,9 @@ export enum Platform {
      */
     $zero = "",
 
-    Youtube = "youtube",
-    Twitch = "twitch",
+    PlatformTwitch = "twitch",
+    PlatformYouTube = "youtube",
+    PlatformKick = "kick",
 };
 
 export interface UserProfile {
