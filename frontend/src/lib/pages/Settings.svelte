@@ -1,10 +1,58 @@
 <script lang="ts">
   import Expander from "../components/Expander.svelte";
   import ColorPicker from "../components/ColorPicker.svelte";
-  import { Shield, User, Palette } from "@lucide/svelte";
+  import { User, Palette } from "@lucide/svelte";
   import ThemeDropdown from "../components/ThemeDropdown.svelte";
   import { appState } from "../settings.svelte";
-  import { Switch } from "bits-ui";
+  import SettingsRow from "../components/SettingsRow.svelte";
+  import ConnectedAccount from "../components/ConnectedAccount.svelte";
+  import { onMount } from "svelte";
+  import { profiles } from "../profiles.svelte";
+  import {
+    GetProfile,
+    LoginPlatform,
+  } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/services/authservice";
+  import { Platform } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/models";
+
+  let isLoadingProfile = $state(true);
+  let isLoggingIn = $state(false);
+
+  onMount(async () => {
+    await fetchProfile();
+  });
+
+  async function fetchProfile() {
+    isLoadingProfile = true;
+    try {
+      profiles["youtube"] = await GetProfile(Platform.Youtube);
+    } catch (err) {
+      console.error("Failed to recover profile:", err);
+    } finally {
+      isLoadingProfile = false;
+    }
+  }
+
+  async function handleConnect() {
+    isLoggingIn = true;
+    try {
+      const success = await LoginPlatform(Platform.Youtube);
+      if (success) {
+        await fetchProfile();
+      }
+    } catch (err) {
+      alert(`Authentication failed: ${err}`);
+    } finally {
+      isLoggingIn = false;
+    }
+  }
+
+  // Define platforms from OAuth configs
+  const platforms = [
+    {
+      id: "youtube",
+      title: "YouTube",
+    },
+  ];
 </script>
 
 {#if appState.settings}
@@ -19,34 +67,47 @@
 
       <div class="settings-stack">
         <div class="expander">
-          <Expander label="Account Details" icon={User}>
-            <div class="placeholder-content">
-              Account inputs and profile settings go here.
-            </div>
-          </Expander>
-        </div>
-
-        <div class="expander">
-          <Expander label="Privacy & Security" icon={Shield}>
-            <div class="placeholder-content">
-              Security triggers, 2FA, and password management go here.
-            </div>
+          <Expander label="Linked Accounts" icon={User}>
+            {#each platforms as platform}
+              <SettingsRow title={platform.title}>
+                <ConnectedAccount
+                  platform={platform.id}
+                  {isLoadingProfile}
+                  profile={profiles[platform.id]}
+                  {isLoggingIn}
+                  onConnect={handleConnect}
+                />
+              </SettingsRow>
+            {/each}
           </Expander>
         </div>
 
         <div class="expander">
           <Expander label="Appearance" icon={Palette}>
-            <ThemeDropdown bind:value={appState.settings.UISettings.Theme} />
+            <SettingsRow
+              title="Theme"
+              description="Changes the theme between dark, light, and system."
+            >
+              <ThemeDropdown bind:value={appState.settings.UISettings.Theme} />
+            </SettingsRow>
             <hr class="settings-divider" />
-            <ColorPicker bind:value={appState.settings.UISettings.Color} />
+            <SettingsRow
+              title="Accent Color"
+              description="Sets the main accent color."
+            >
+              <ColorPicker bind:value={appState.settings.UISettings.Color} />
+            </SettingsRow>
             <hr class="settings-divider" />
-            <div class="setting-row">
-              <h1>Fully Close Sidebar?</h1>
+            <SettingsRow
+              title="Fully Close Sidebar?"
+              description="Toggles whether the sidebar should fully close."
+            >
               <input
                 type="checkbox"
+                class="toggle-checkbox"
                 bind:checked={appState.settings.UISettings.FullCloseSidebar}
               />
-            </div>
+            </SettingsRow>
           </Expander>
         </div>
       </div>
@@ -99,21 +160,6 @@
     width: 100%;
   }
 
-  .setting-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    font-size: 0.875rem;
-    color: var(--color-text);
-  }
-
-  .placeholder-content {
-    font-size: 0.875rem;
-    color: var(--color-text);
-    opacity: 0.8;
-  }
-
   .expander {
     background: light-dark(
       rgba(245, 245, 247, 0.7),
@@ -139,5 +185,11 @@
       color-mix(in srgb, var(--color-brand) 40%, transparent)
     );
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.06);
+  }
+
+  .toggle-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
   }
 </style>

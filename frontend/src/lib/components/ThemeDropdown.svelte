@@ -20,47 +20,35 @@
   const ActiveIcon = $derived(activeTheme.icon);
 </script>
 
-<div class="setting-row">
-  <span>Interface Mode</span>
+<Dropdown id="theme-menu" width="8.5rem">
+  {#snippet trigger()}
+    <button class="btn btn-between select-trigger" popovertarget="theme-menu">
+      <span class="active-group"
+        ><ActiveIcon size={14} /> {activeTheme.label}</span
+      >
+      <ChevronDown size={14} opacity="0.7" />
+    </button>
+  {/snippet}
 
-  <Dropdown id="theme-menu" width="8.5rem">
-    {#snippet trigger()}
-      <button class="btn btn-between select-trigger" popovertarget="theme-menu">
-        <span class="active-group"
-          ><ActiveIcon size={14} /> {activeTheme.label}</span
-        >
-        <ChevronDown size={14} opacity="0.7" />
+  {#snippet content(close)}
+    {#each themes as theme}
+      <button
+        type="button"
+        class="btn btn-start menu-btn"
+        class:selected={value === theme.value}
+        onclick={() => {
+          value = theme.value;
+          close();
+        }}
+      >
+        <theme.icon size={14} />
+        {theme.label}
       </button>
-    {/snippet}
-
-    {#snippet content(close)}
-      {#each themes as theme}
-        <button
-          type="button"
-          class="btn btn-start menu-btn"
-          class:selected={value === theme.value}
-          onclick={() => {
-            value = theme.value;
-            close();
-          }}
-        >
-          <theme.icon size={14} />
-          {theme.label}
-        </button>
-      {/each}
-    {/snippet}
-  </Dropdown>
-</div>
+    {/each}
+  {/snippet}
+</Dropdown>
 
 <style>
-  .setting-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    font-size: 0.875rem;
-    color: var(--color-text);
-  }
   .select-trigger {
     font-size: 0.75rem;
     gap: var(--space-4);

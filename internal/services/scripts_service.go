@@ -3,29 +3,29 @@ package services
 import (
 	"context"
 	"fmt"
-	"os"
+	"log/slog"
 	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/dop251/goja"
 	"github.com/wailsapp/wails/v3/pkg/application"
-	"github.com/ystreamutils/YStreamUtils/logger"
+	"github.com/ystreamutils/YStreamUtils/internal/utils"
 )
 
 type ScriptsService struct {
+	BaseService
 	ctx           context.Context
-	eventBus      *EventBusService
 	pluginService *PluginService
 	mu            sync.RWMutex
 	cachedScripts map[string]*goja.Program
 	hostDtsPath   string
 }
 
-func NewScriptsService(ctx context.Context, bus *EventBusService, plugins *PluginService) *ScriptsService {
+func NewScriptsService(ctx context.Context, plugins *PluginService) *ScriptsService {
 	return &ScriptsService{
+		BaseService:   NewBaseService("ScriptsService"),
 		ctx:           ctx,
-		eventBus:      bus,
 		pluginService: plugins,
 		cachedScripts: make(map[string]*goja.Program),
 		hostDtsPath:   filepath.Join("frontend", "src", "lib", "types", "script-host.d.ts"),
@@ -33,66 +33,72 @@ func NewScriptsService(ctx context.Context, bus *EventBusService, plugins *Plugi
 }
 
 func (ss *ScriptsService) RegisterScriptAndBindToBus(topic string, scriptID string, rawJsString string) error {
+	log := ss.Logger.With("scriptId", scriptID, "topic", topic)
+
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 
 	program, err := goja.Compile(scriptID, rawJsString, true)
 	if err != nil {
+		log.Error("javascript compilation syntax validation error", "error", err.Error())
 		return fmt.Errorf("javascript compilation syntax validation error: %w", err)
 	}
 
 	ss.cachedScripts[scriptID] = program
 
-	ss.eventBus.Subscribe(topic, func(event Event[map[string]any]) {
+	application.Get().Event.On(topic, func(event *application.CustomEvent) {
 		vm := goja.New()
 
-		vm.Set("payload", event.Payload)
+		vm.Set("payload", event.Data)
 
 		hostObj := vm.NewObject()
 		vm.Set("host", hostObj)
 
 		hostObj.Set("log", func(level string, msg string) {
-			switch strings.ToLower(level) {
-			case "info":
-				logger.LogInfo("ScriptsService", fmt.Sprintf("Script %s: %s", scriptID, msg))
-			case "warn":
-				logger.LogWarn("ScriptsService", fmt.Sprintf("Script %s: %s", scriptID, msg))
-			case "error":
-				logger.LogError("ScriptsService", fmt.Sprintf("Script %s: %s", scriptID, msg))
-			default:
-				logger.Log("unknown", "ScriptsService", fmt.Sprintf("Script %s: %s", scriptID, msg))
-			}
+			logLevel := utils.ParseLogLevel(level, slog.LevelInfo)
+
+			log.Log(context.Background(), logLevel, msg)
 		})
 
-		vm.Set("_invokeWasmAction", func(pluginNs string, actionName string, call goja.FunctionCall) goja.Value {
+		vm.Set("_invokeWasmAction", func(call goja.FunctionCall) goja.Value {
+			if len(call.Arguments) < 2 {
+				panic(vm.NewTypeError("InvokeAction requires pluginNamespace and actionName"))
+			}
+
+			pluginNs := call.Arguments[0].String()
+			actionName := call.Arguments[1].String()
+			wasmJsArgs := call.Arguments[2:]
 
 			// Convert JavaScript arguments into numeric register array slices
-			wasmArgs := make([]uint64, len(call.Arguments))
-			for i, arg := range call.Arguments {
+			wasmArgs := make([]uint64, len(wasmJsArgs))
+			for i, arg := range wasmJsArgs {
 				wasmArgs[i] = uint64(arg.ToInteger())
 			}
 
 			res, err := ss.pluginService.InvokeAction(pluginNs, actionName, wasmArgs)
 			if err != nil {
+				log.Error("wasm execution fault context inside script execution", "plugin", pluginNs, "action", actionName, "error", err.Error())
 				panic(vm.NewTypeError("WebAssembly execution fault context: ", err.Error()))
 			}
 
 			if len(res) > 0 {
-				return vm.ToValue(res[0]) // Return computations directly back to the JS stack
+				return vm.ToValue(res[0])
 			}
 			return goja.Undefined()
 		})
 
-		// This generates a global 'plugins' proxy object that maps to all the compiled WebAssembly modules and their exported functions
 		bootstrap := ss.generateJavascriptPluginObjectType()
-		_, _ = vm.RunString(bootstrap)
+		if _, err := vm.RunString(bootstrap); err != nil {
+			log.Error("failed to run plugin proxy bootstrap", "error", err.Error())
+			return
+		}
 
-		_, err = vm.RunProgram(program)
-		if err != nil {
-			logger.LogError("ScriptsService", fmt.Sprintf("Script %s crashed: %v\n", scriptID, err))
+		if _, err = vm.RunProgram(program); err != nil {
+			log.Error("script execution crashed runtime context", "error", err.Error())
 		}
 	})
 
+	log.Info("successfully registered and bound script to wails event bus")
 	return nil
 }
 
@@ -158,37 +164,5 @@ func (ss *ScriptsService) GetDynamicPluginDefinitions() (string, error) {
 }
 
 func (ss *ScriptsService) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
-	err := ss.generateHostFunctionTypes()
-	if err != nil {
-		logger.LogError("ScriptsService", err.Error())
-		return err
-	}
-
-
-	return nil
-}
-
-func (ss *ScriptsService) generateHostFunctionTypes() error {
-	logger.LogInfo("ScriptsService", "Generating host types...")
-
-	var sb strings.Builder
-	sb.WriteString("/**\n * Automatically generated DO NOT EDIT\n */\n\n")
-	sb.WriteString("declare namespace host {\n")
-	sb.WriteString("    function log(level: 'info' | 'warn' | 'error', message: string): void;\n")
-	sb.WriteString("}\n")
-
-	err := os.MkdirAll(filepath.Dir(ss.hostDtsPath), 0755)
-	if err != nil {
-		logger.LogError("ScriptService", err.Error())
-		return fmt.Errorf("failed to create host types target folder path: %w", err)
-	}
-
-	err = os.WriteFile(ss.hostDtsPath, []byte(sb.String()), 0644)
-	if err != nil {
-		logger.LogError("ScriptService", err.Error())
-		return fmt.Errorf("failed to drop script-host definition file: %w", err)
-	}
-
-	logger.LogInfo("ScriptsService", "script-host.d.ts initialization completed.")
 	return nil
 }

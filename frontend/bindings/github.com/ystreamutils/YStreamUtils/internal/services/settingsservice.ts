@@ -9,10 +9,14 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
-export function Publish(eventType: string, payload: { [_ in string]?: any } | null): $CancellablePromise<void> {
-    return $Call.ByID(3853013798, eventType, payload);
+export function GetSettings(): $CancellablePromise<$models.Settings | null> {
+    return $Call.ByID(3431933679);
 }
 
-export function Subscribe(eventType: string, handler: $models.EventHandler<{ [_ in string]?: any } | null>): $CancellablePromise<void> {
-    return $Call.ByID(1870511905, eventType, handler);
+export function LoadSettings(): $CancellablePromise<void> {
+    return $Call.ByID(3437997003);
+}
+
+export function SaveSettings(settings: $models.Settings | null): $CancellablePromise<void> {
+    return $Call.ByID(1966307142, settings);
 }

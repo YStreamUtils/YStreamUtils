@@ -10,6 +10,13 @@
   import "./lib/style.css";
 
   let ActiveScreen = $derived(pages[router.current]);
+  $effect(() => {
+    sessionStorage.setItem("route", router.current);
+  });
+
+  $effect(() => {
+    sessionStorage.setItem("sidebarOpen", JSON.stringify(sidebar.isOpen));
+  });
 
   onMount(async () => {
     await initSettings();
@@ -19,10 +26,8 @@
   $effect(() => {
     if (appState.settings?.UISettings) {
       const { Color, Theme } = appState.settings.UISettings;
-      const cssScheme = Theme === "system" ? "light dark" : Theme;
-
       document.documentElement.style.setProperty("--color-brand", Color);
-      document.documentElement.style.setProperty("color-scheme", cssScheme);
+      document.documentElement.setAttribute("data-theme", Theme);
     }
   });
 </script>

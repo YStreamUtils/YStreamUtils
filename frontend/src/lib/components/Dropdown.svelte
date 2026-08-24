@@ -18,10 +18,10 @@
   {@render trigger()}
 </div>
 
-<div 
-  bind:this={popoverElement} 
-  {id} 
-  popover="auto" 
+<div
+  bind:this={popoverElement}
+  {id}
+  popover
   class="dropdown-panel"
   style:--drop-width={width}
   style:--anchor-id="--anchor-{id}"
@@ -30,8 +30,12 @@
 </div>
 
 <style>
-  .dropdown-anchor-zone { display: contents; }
-  :global(.dropdown-anchor-zone > button) { anchor-name: var(--anchor-id); }
+  .dropdown-anchor-zone {
+    display: contents;
+  }
+  :global(.dropdown-anchor-zone > button) {
+    anchor-name: var(--anchor-id);
+  }
 
   .dropdown-panel {
     background-color: light-dark(var(--neutral-050), var(--neutral-900-tint));
@@ -50,9 +54,20 @@
     margin-top: var(--space-1_5);
     opacity: 0;
     transform: scale(0.97);
-    transition: opacity 0.12s ease, transform 0.12s cubic-bezier(0.4, 0, 0.2, 1), display 0.12s allow-discrete;
+    transition:
+      opacity 0.12s ease,
+      transform 0.12s cubic-bezier(0.4, 0, 0.2, 1),
+      display 0.12s allow-discrete;
   }
 
-  .dropdown-panel:popover-open { opacity: 1; transform: scale(1); }
-  @starting-style { .dropdown-panel:popover-open { opacity: 0; transform: scale(0.97); } }
+  .dropdown-panel:popover-open {
+    opacity: 1;
+    transform: scale(1);
+  }
+  @starting-style {
+    .dropdown-panel:popover-open {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
 </style>

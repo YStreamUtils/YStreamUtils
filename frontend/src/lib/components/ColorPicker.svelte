@@ -3,9 +3,12 @@
 
   interface Props {
     value?: string;
+    class?: string;
   }
 
-  let { value = $bindable("#9900ff") }: Props = $props();
+  let { value = $bindable("#9900ff"), class: className = "" }: Props = $props();
+
+  const id = $props.id();
 
   const presets = [
     { value: "#9900ff", label: "Purple" },
@@ -25,69 +28,59 @@
   }
 </script>
 
-<div class="setting-row">
-  <span>Theme Accent</span>
+<button
+  class="btn btn-center picker-trigger {className}"
+  style="anchor-name: --picker-anchor-{id};"
+  title="Open color picker"
+  popovertarget={id}
+>
+  <div class="swatch preview" style:background-color={value}></div>
+  <span class="hex">{value}</span>
+</button>
+
+<div
+  bind:this={popoverElement}
+  {id}
+  popover
+  class="panel"
+  style="position-anchor: --picker-anchor-{id};"
+>
+  <div class="grid">
+    {#each presets as preset}
+      <button
+        type="button"
+        class="swatch"
+        class:active={value === preset.value}
+        style:background-color={preset.value}
+        title="Select {preset.label}"
+        aria-label="Select {preset.label}"
+        onclick={() => {
+          value = preset.value;
+          closePopover();
+        }}
+      ></button>
+    {/each}
+  </div>
 
   <button
-    class="btn btn-center picker-trigger"
-    title="Open color picker"
-    popovertarget="color-picker-popover"
+    type="button"
+    class="btn btn-center custom-btn"
+    onclick={() => nativePickerInput.click()}
   >
-    <div class="swatch preview" style:background-color={value}></div>
-    <span class="hex">{value}</span>
+    <Paintbrush size={14} /> Custom color
   </button>
 
-  <div
-    bind:this={popoverElement}
-    id="color-picker-popover"
-    popover="auto"
-    class="panel"
-  >
-    <div class="grid">
-      {#each presets as preset}
-        <button
-          type="button"
-          class="swatch"
-          class:active={value === preset.value}
-          style:background-color={preset.value}
-          title="Select {preset.label}"
-          aria-label="Select {preset.label}"
-          onclick={() => {
-            value = preset.value;
-            closePopover();
-          }}
-        ></button>
-      {/each}
-    </div>
-
-    <button
-      type="button"
-      class="btn btn-center custom-btn"
-      onclick={() => nativePickerInput.click()}
-    >
-      <Paintbrush size={14} /> Custom color
-    </button>
-
-    <input
-      bind:this={nativePickerInput}
-      type="color"
-      class="sr-only"
-      bind:value
-      aria-label="Custom color picker canvas"
-      onchange={closePopover}
-    />
-  </div>
+  <input
+    bind:this={nativePickerInput}
+    type="color"
+    class="sr-only"
+    bind:value
+    aria-label="Custom color picker canvas"
+    onchange={closePopover}
+  />
 </div>
 
 <style>
-  .setting-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    font-size: 0.875rem;
-    color: var(--color-text);
-  }
   .picker-trigger {
     font-size: 0.75rem;
     gap: var(--space-2);
@@ -95,7 +88,6 @@
     border: 1px solid light-dark(var(--neutral-200), var(--neutral-800-tint));
     border-radius: var(--space-1);
     text-transform: uppercase;
-    anchor-name: --picker-anchor;
   }
   .swatch {
     aspect-ratio: 1;
@@ -116,13 +108,11 @@
     border-radius: var(--space-1_5);
     padding: var(--space-3);
     width: 10rem;
-    display: flex;
     flex-direction: column;
     gap: var(--space-2_5);
     position: absolute;
     margin: 0;
     inset: auto;
-    position-anchor: --picker-anchor;
     top: anchor(bottom);
     right: anchor(right);
     margin-top: var(--space-1_5);

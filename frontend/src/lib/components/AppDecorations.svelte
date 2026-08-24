@@ -49,6 +49,7 @@
     background: light-dark(var(--neutral-200-tint), var(--neutral-900-tint));
     border-bottom: 1px solid #1a1a1a;
     padding: 0 var(--space-2);
+    padding-left: var(--space-4);
   }
 
   .title {

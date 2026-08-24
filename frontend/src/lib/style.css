@@ -2,9 +2,23 @@ html {
   background-color: light-dark(var(--neutral-200), var(--neutral-800));
 }
 
+:root,
+:root[data-theme="system"] {
+  color-scheme: light dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
 :root {
   --color-background: #ffffff;
   --color-text: light-dark(#000000, #ffffff);
+  --color-text-muted: light-dark(#555555, #cccccc);
   --color-brand: #9900ff;
 
   --neutral-050: hsl(210, 0%, 95%);

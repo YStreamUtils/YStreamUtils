@@ -1,13 +1,11 @@
 package services
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
-	"github.com/ystreamutils/YStreamUtils/logger"
 )
 
 type Settings struct {
@@ -29,12 +27,14 @@ var DefaultSettings = Settings{
 }
 
 type SettingsService struct {
+	BaseService
 	settingsPath string
 	Settings     *Settings
 }
 
 func NewSettingsService(settingsPath string) *SettingsService {
 	s := &SettingsService{
+		BaseService:  NewBaseService("SettingsService"),
 		settingsPath: path.Join(settingsPath, "settings.toml"),
 		Settings:     &Settings{},
 	}
@@ -48,12 +48,15 @@ func NewSettingsService(settingsPath string) *SettingsService {
 }
 
 func (s *SettingsService) LoadSettings() error {
-	logger.LogInfo("SettingsService", fmt.Sprintf("Trying to load settings from: %v", s.settingsPath))
+	s.Logger.Info("trying to load settings configuration from file system", "path", s.settingsPath)
+
 	_, err := toml.DecodeFile(s.settingsPath, s.Settings)
 	if err != nil {
-		logger.LogError("SettingsService", err.Error())
+		s.Logger.Error("failed to decode configuration file path target", "error", err.Error())
+		return err
 	}
-	return err
+
+	return nil
 }
 
 func (s *SettingsService) SaveSettings(settings *Settings) error {

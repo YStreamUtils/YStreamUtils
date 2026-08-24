@@ -1,5 +1,5 @@
-import type { Settings } from "../../bindings/github.com/ystreamutils/YStreamUtils/services";
-import { GetSettings, SaveSettings } from "../../bindings/github.com/ystreamutils/YStreamUtils/services/settingsservice";
+import type { Settings } from "../../bindings/github.com/ystreamutils/YStreamUtils/internal/services";
+import { GetSettings, SaveSettings } from "../../bindings/github.com/ystreamutils/YStreamUtils/internal/services/settingsservice";
 
 const baseState = $state<{ settings: Settings | null }>({
   settings: null

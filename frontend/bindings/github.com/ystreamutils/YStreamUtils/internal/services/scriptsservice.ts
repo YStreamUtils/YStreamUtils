@@ -6,9 +6,9 @@
 import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
 export function GetDynamicPluginDefinitions(): $CancellablePromise<string> {
-    return $Call.ByID(2333173495);
+    return $Call.ByID(2905684001);
 }
 
 export function RegisterScriptAndBindToBus(topic: string, scriptID: string, rawJsString: string): $CancellablePromise<void> {
-    return $Call.ByID(716056716, topic, scriptID, rawJsString);
+    return $Call.ByID(3684221790, topic, scriptID, rawJsString);
 }

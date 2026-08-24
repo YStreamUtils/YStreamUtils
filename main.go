@@ -3,15 +3,13 @@ package main
 import (
 	"context"
 	"embed"
-	"fmt"
-	"os"
-	"path"
-
 	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
-	"github.com/ystreamutils/YStreamUtils/logger"
-	"github.com/ystreamutils/YStreamUtils/services"
+	"github.com/ystreamutils/YStreamUtils/internal/models"
+	"github.com/ystreamutils/YStreamUtils/internal/services"
 )
 
 //go:embed all:frontend/dist
@@ -19,49 +17,55 @@ var assets embed.FS
 
 const AppName = "YStreamUtils"
 
+var userConfigDir string
+
 func init() {
 	userPath, err := os.UserConfigDir()
 	if err != nil {
-		logger.LogError("Init", fmt.Sprintf("Failed to get user config directory: %v", err.Error()))
-		os.Exit(1)
+		log.Fatal("failed to get user config directory:", err)
 	}
 
-	configPath := path.Join(userPath, AppName)
+	userConfigDir = filepath.Join(userPath, AppName)
 
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		err := os.MkdirAll(configPath, 0755)
+	if _, err := os.Stat(userConfigDir); os.IsNotExist(err) {
+		err := os.MkdirAll(userConfigDir, 0755)
 		if err != nil {
-			logger.LogError("INIT", fmt.Sprintf("Failed to create config directory: %v", err.Error()))
-			os.Exit(1)
+			log.Fatal("failed to create app directory space:", userConfigDir, err)
 		}
 	}
-
-	logger.LogInfo("Init", fmt.Sprintf("Config Directory is: %v", configPath))
-	os.Setenv("YSU_USER_CONFIG_DIR", configPath)
-	logger.LogInfo("INIT", os.Getenv("YSU_USER_CONFIG_DIR"))
 }
 
 func setupServices() []application.Service {
 	ctx := context.Background()
-
-	eventBusService := services.NewEventBusService(100)
-	pluginService := services.NewPluginService(ctx, "./plugins")
-
-	err := pluginService.LoadPlugins()
+	vaultService := services.NewTokenVault()
+	youtubeService, err := services.NewYouTubeService(ctx, vaultService)
 	if err != nil {
-		fmt.Printf("[Wasm Runtime Fault] Failed to complete baseline plugin compilation initialization: %v\n", err)
+		log.Fatal("failed to initialize YouTube service:", err)
 	}
 
-	scriptsService := services.NewScriptsService(ctx, eventBusService, pluginService)
+	authService := services.NewAuthService(vaultService)
+	authService.RegisterProfileDriver(models.Youtube, youtubeService)
 
-	_ = scriptsService.RegisterScriptAndBindToBus("TwitchFollow", "on_welcome_follow", `
-		host.log("info", "Channel macro triggered over Go generic channel!");
-	`)
+	metricsService := services.NewMetricsService()
+	metricsService.RegisterDriver("youtube", youtubeService)
 
-	settingsService := services.NewSettingsService(os.Getenv("YSU_USER_CONFIG_DIR"))
+	chatService := services.NewChatService()
+	chatService.RegisterDriver("youtube", youtubeService)
+
+	pluginService := services.NewPluginService(ctx, userConfigDir)
+	if err := pluginService.LoadPlugins(); err != nil {
+		log.Printf("failed baseline plugin compilation: %v", err)
+	}
+
+	scriptsService := services.NewScriptsService(ctx, pluginService)
+	settingsService := services.NewSettingsService(userConfigDir)
 
 	return []application.Service{
-		application.NewService(eventBusService),
+		application.NewService(vaultService),
+		application.NewService(authService),
+		application.NewService(youtubeService),
+		application.NewService(metricsService),
+		application.NewService(chatService),
 		application.NewService(pluginService),
 		application.NewService(scriptsService),
 		application.NewService(settingsService),
@@ -69,7 +73,6 @@ func setupServices() []application.Service {
 }
 
 func main() {
-
 	app := application.New(application.Options{
 		Name:        "YStreamUtils",
 		Description: "A demo of using raw HTML & CSS",
@@ -95,14 +98,15 @@ func main() {
 		Windows: application.WindowsWindow{
 			NonClientRegionSupport: true,
 		},
-		BackgroundColour: application.NewRGB(255, 255, 255),
-		URL:              "/",
+		BackgroundColour:           application.NewRGB(255, 255, 255),
+		URL:                        "/",
+		DevToolsEnabled:            true,
+		DefaultContextMenuDisabled: false,
 	})
 
 	SetupSystemTray(app, window)
 
 	err := app.Run()
-
 	if err != nil {
 		log.Fatal(err)
 	}
