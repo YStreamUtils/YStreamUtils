@@ -21,7 +21,7 @@
   let container: HTMLDivElement;
 
   let monacoInstance = $state.raw<typeof monacoCore>();
-  let editorInstance = $state.raw<editor.IStandaloneCodeEditor | null>(null);
+  let editorInstance = $state.raw<editor.IStandaloneCodeEditor>();
   let modelInstance = $state.raw<editor.ITextModel | null>(null);
   let extraLibsDisposable = $state.raw<IDisposable | null>(null);
   let isUpdatingFromModel = $state(false);
@@ -59,7 +59,7 @@
       const monaco = await loader.init();
       monacoInstance = monaco as typeof monacoCore;
 
-      const tsDefaults = monacoInstance?.typescript.typescriptDefaults;
+      const tsDefaults = monacoInstance.typescript.typescriptDefaults;
       tsDefaults?.setCompilerOptions({
         target: monacoInstance.typescript.ScriptTarget.ES2020,
         module: monacoInstance.typescript.ModuleKind.None,
@@ -77,16 +77,17 @@
         langs: ["typescript", "javascript", "json"],
       });
 
-      shikiToMonaco(highlighter, monaco);
+      // yippie ts
+      shikiToMonaco(highlighter, monacoInstance as any);
 
-      editorInstance = monaco.editor.create(container, {
+      editorInstance = monacoInstance.editor.create(container, {
         model: modelInstance,
         automaticLayout: true,
         theme: "one-dark-pro",
         minimap: { enabled: false },
       });
 
-      editorInstance?.onDidChangeModelContent(() => {
+      editorInstance.onDidChangeModelContent(() => {
         if (isUpdatingFromModel) return;
 
         isUpdatingFromModel = true;
@@ -139,8 +140,8 @@
     display: flex;
     flex-wrap: wrap;
     width: 100%;
-    height: 400px;
-    min-height: 200px;
+    height: 48rem;
+    min-height: 12rem;
     overflow: hidden;
     border-radius: 4px;
   }
