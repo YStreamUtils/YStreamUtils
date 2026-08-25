@@ -6,7 +6,7 @@ type StreamEventEnvelope[T any] struct {
 	Event     StreamEventName `json:"event"`
 	Platform  Platform        `json:"platform"`
 	Timestamp *time.Time      `json:"timestamp,omitempty"`
-	Data      T             `json:"data"`
+	Data      T               `json:"data"`
 }
 
 type StreamEventName string
@@ -35,14 +35,14 @@ type StreamChatMessageEvent struct {
 	BaseUserData
 }
 
-const StreamSuperchatMessage StreamEventName = "chat"
+const StreamSuperchatMessage StreamEventName = "superchat"
 
 type StreamSuperchatMessageEvent struct {
 	BaseUserData
 	Amount string `json:"amount"`
 }
 
-const StreamCheerMessage StreamEventName = "chat"
+const StreamCheerMessage StreamEventName = "cheer"
 
 type StreamCheerMessageEvent struct {
 	BaseUserData

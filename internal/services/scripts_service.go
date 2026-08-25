@@ -24,12 +24,22 @@ func (TypedSchema[T]) GetEnvelopeSchema(eventKey string) string {
 	return utils.GenerateTSFields(zeroEnvelope, eventKey)
 }
 
+type EmptyStruct struct{}
+
+func (EmptyStruct) GetEnvelopeSchema(eventKey string) string {
+	return ""
+}
+
+type ScriptCache struct {
+	Program     goja.Program
+	Unsubscribe func()
+}
 type ScriptsService struct {
 	BaseService
 	ctx           context.Context
 	pluginService *PluginService
 	mu            sync.RWMutex
-	cachedScripts map[string]*goja.Program
+	cachedScripts map[string]*ScriptCache
 	typeRegistry  map[models.EventKey]SchemaProvider
 }
 
@@ -38,7 +48,7 @@ func NewScriptsService(ctx context.Context, plugins *PluginService) *ScriptsServ
 		BaseService:   NewBaseService("ScriptsService"),
 		ctx:           ctx,
 		pluginService: plugins,
-		cachedScripts: make(map[string]*goja.Program),
+		cachedScripts: make(map[string]*ScriptCache),
 		typeRegistry:  make(map[models.EventKey]SchemaProvider),
 	}
 }
@@ -55,9 +65,12 @@ func (ss *ScriptsService) RegisterScriptAndBindToBus(topic models.EventKey, scri
 		return fmt.Errorf("javascript compilation syntax validation error: %w", err)
 	}
 
-	ss.cachedScripts[scriptID] = program
+	if val, exists := ss.cachedScripts[scriptID]; exists {
+		val.Unsubscribe()
+		delete(ss.cachedScripts, scriptID)
+	}
 
-	application.Get().Event.On(string(topic), func(event *application.CustomEvent) {
+	unsub := application.Get().Event.On(string(topic), func(event *application.CustomEvent) {
 		vm := goja.New()
 
 		vm.Set("payload", event.Data)
@@ -108,6 +121,11 @@ func (ss *ScriptsService) RegisterScriptAndBindToBus(topic models.EventKey, scri
 			log.Error("script execution crashed runtime context", "error", err.Error())
 		}
 	})
+
+	ss.cachedScripts[scriptID] = &ScriptCache{
+		Program:     *program,
+		Unsubscribe: unsub,
+	}
 
 	log.Info("successfully registered and bound script to wails event bus")
 	return nil
@@ -212,5 +230,6 @@ declare namespace host {
 func (ss *ScriptsService) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
 	ss.typeRegistry[models.EventKeyStreamChatMessage] = TypedSchema[models.StreamChatMessageEvent]{}
 	ss.typeRegistry[models.EventKeyYoutubeSuperchat] = TypedSchema[models.StreamSuperchatMessageEvent]{}
+	ss.typeRegistry[models.EventKeyManualInvoke] = EmptyStruct{}
 	return nil
 }

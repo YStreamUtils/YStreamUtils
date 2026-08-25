@@ -140,7 +140,7 @@
     display: flex;
     flex-wrap: wrap;
     width: 100%;
-    height: 48rem;
+    height: 30rem;
     min-height: 12rem;
     overflow: hidden;
     border-radius: 4px;

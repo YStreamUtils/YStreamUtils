@@ -1,38 +1,60 @@
 <script lang="ts">
+  import { Check, Save } from "@lucide/svelte";
   import { EventKey } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/models";
+  import Button from "../components/Button.svelte";
   import Card from "../components/Card.svelte";
   import MonacoEditor from "../components/MonacoEditor.svelte";
+  import { RegisterScriptAndBindToBus } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/services/scriptsservice";
+    import { Events } from "@wailsio/runtime";
 
   let currentKey = $state<EventKey>(EventKey.EventKeyStreamChatMessage);
   let currentTheme = $state("goja-dark");
   let userScript = $state(
     '// Try typing "payload.data." or "plugins." here!\n\nhost.log("info", "Hello from Goja!");\n',
   );
+
+  const filteredEvents = Object.entries(EventKey).filter(
+    (entry): entry is [keyof typeof EventKey, EventKey] => {
+      const [_, value] = entry;
+      return value !== EventKey.$zero;
+    },
+  );
+
+  async function handleSave() {
+    try {
+      RegisterScriptAndBindToBus(currentKey, "script_name", userScript);
+    }
+    catch(error) {
+      console.error(error)
+    }
+    finally {
+      alert(`Script ${"script_name"} saved and bound to ${currentKey}`)
+    }
+  }
+
+  async function testButton() {
+    Events.Emit(EventKey.EventKeyManualInvoke)
+  }
 </script>
 
 <Card style="width: 100%; height: 100%;padding: var(--space-4);">
-  <div>
-    <label for="event-select" style="margin-right: 10px; font-weight: bold;"
-      >Select Event Stream Target:</label
-    >
+  <div style="display: flex; flex-wrap: wrap;">
+    <label for="event-select" style="margin-right: 10px; font-weight: bold;">
+      Select Event Stream Target:
+    </label>
     <select
       id="event-select"
       bind:value={currentKey}
       style="padding: 6px; color: #fff; background: #222; border: 1px solid #444; border-radius: 4px;"
     >
-      <option value={EventKey.EventKeyStreamChatMessage}
-        >Stream Chat Message (all)</option
-      >
-      <option value={EventKey.EventKeyYoutubeSuperchat}
-        >YouTube SuperChat</option
-      >
+      {#each filteredEvents as [eventKey, displayName], index (eventKey)}
+        <option value={EventKey[eventKey]}>
+          {displayName}
+        </option>
+      {/each}
     </select>
+    <Button variant="success" icon={Save} onclick={handleSave}>Save</Button>
+    <Button variant="warning" icon={Check} onclick={testButton}>Test</Button>
     <MonacoEditor bind:value={userScript} eventKey={currentKey} />
-
-    <div style="margin-top: 20px;">
-      <h4>Preview:</h4>
-      <pre
-        style=" padding: 10px; overflow-x: auto; color: #0ad63d;background: #1e1e1e; border: 1px solid #333;">{userScript}</pre>
-    </div>
-  </div></Card
->
+  </div>
+</Card>

@@ -7,6 +7,8 @@ export enum EventKey {
      */
     $zero = "",
 
+    EventKeyManualInvoke = "app:manual",
+
     EventKeyStreamChatMessage = "stream:chat_message",
 
     EventKeyYoutubeSuperchat = "stream:youtube:superchat",
