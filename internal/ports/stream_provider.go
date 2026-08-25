@@ -18,4 +18,5 @@ type StreamMetricsDriver interface {
 
 type StreamProfileDriver interface {
 	GetProfile(ctx context.Context) (*models.UserProfile, error)
+	CreateClient(ctx context.Context) error
 }

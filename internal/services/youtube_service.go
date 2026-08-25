@@ -27,17 +27,24 @@ type YouTubeService struct {
 }
 
 func NewYouTubeService(ctx context.Context, v ports.SecretVault) (*YouTubeService, error) {
-	config, exists := auth.OAuthConfigs["youtube"]
-	if !exists {
-		return nil, fmt.Errorf("missing YouTube OAuth configuration")
+	service := &YouTubeService{
+		BaseService: NewBaseService("YouTubeService"),
+		vault:       v,
 	}
 
-	token, err := v.GetSession("youtube")
+	err := service.CreateClient(ctx)
+	return service, err
+}
+
+func (y *YouTubeService) CreateClient(ctx context.Context) error {
+	config, exists := auth.OAuthConfigs["youtube"]
+	if !exists {
+		return fmt.Errorf("missing YouTube OAuth configuration")
+	}
+
+	token, err := y.vault.GetSession("youtube")
 	if err != nil {
-		return &YouTubeService{
-			BaseService: NewBaseService("YouTubeService"),
-			vault:       v,
-		}, nil
+		return err
 	}
 
 	tokenSource := config.TokenSource(ctx, token)
@@ -45,14 +52,11 @@ func NewYouTubeService(ctx context.Context, v ports.SecretVault) (*YouTubeServic
 
 	svc, err := youtube.NewService(ctx, option.WithHTTPClient(httpClient))
 	if err != nil {
-		return nil, fmt.Errorf("failed creating live google youtube api engine: %w", err)
+		return fmt.Errorf("failed creating live google youtube api engine: %w", err)
 	}
 
-	return &YouTubeService{
-		BaseService: NewBaseService("YouTubeService"),
-		vault:       v,
-		apiService:  svc,
-	}, nil
+	y.apiService = svc
+	return nil
 }
 
 func (y *YouTubeService) ConnectChat(ctx context.Context, videoId string) error {
@@ -275,24 +279,26 @@ func (y *YouTubeService) processIncomingItem(item *youtube_protobuf.LiveChatMess
 	switch item.Snippet.GetType() {
 
 	case youtube_protobuf.LiveChatMessageSnippet_TypeWrapper_SUPER_CHAT_EVENT:
-		scMsg := models.StreamSuperchatMessage{
+		scMsg := models.StreamSuperchatMessageEvent{
 			BaseUserData: models.BaseUserData{
 				Message:     item.Snippet.GetDisplayMessage(),
 				MessageID:   item.GetId(),
 				Author:      author,
 				AuthorID:    *item.GetSnippet().AuthorChannelId,
-				AuthorColor: "#ffd700",
+				AuthorColor: GetYouTubeUserColor(item),
 			},
 			Amount: *item.Snippet.GetSuperChatDetails().AmountDisplayString,
 		}
 
-		event.Emit("stream:chat_message", models.NewStreamEvent("superchat", models.PlatformYouTube, scMsg))
+		evt := models.NewStreamEvent(models.StreamSuperchatMessage, models.PlatformYouTube, scMsg)
+		event.Emit(string(models.EventKeyStreamChatMessage), evt)
+		event.Emit(string(models.EventKeyYoutubeSuperchat), evt)
 
 	case youtube_protobuf.LiveChatMessageSnippet_TypeWrapper_TEXT_MESSAGE_EVENT:
 		fallthrough
 
 	default:
-		chatMsg := models.StreamChatMessage{
+		chatMsg := models.StreamChatMessageEvent{
 			BaseUserData: models.BaseUserData{
 				Message:     item.Snippet.GetDisplayMessage(),
 				MessageID:   item.GetId(),
@@ -302,7 +308,7 @@ func (y *YouTubeService) processIncomingItem(item *youtube_protobuf.LiveChatMess
 			},
 		}
 
-		event.Emit("stream:chat_message", models.NewStreamEvent("chat", models.PlatformYouTube, chatMsg))
+		event.Emit(string(models.EventKeyStreamChatMessage), models.NewStreamEvent(models.StreamChatMessage, models.PlatformYouTube, chatMsg))
 	}
 
 }

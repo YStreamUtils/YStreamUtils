@@ -13,6 +13,10 @@ export function ConnectChat(videoId: string): $CancellablePromise<void> {
     return $Call.ByID(3433875382, videoId);
 }
 
+export function CreateClient(): $CancellablePromise<void> {
+    return $Call.ByID(3983989701);
+}
+
 export function FindActiveBroadcastVideoIDs(includeUpcoming: boolean): $CancellablePromise<string[] | null> {
     return $Call.ByID(253893873, includeUpcoming);
 }

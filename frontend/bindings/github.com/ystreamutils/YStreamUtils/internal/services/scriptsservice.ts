@@ -5,10 +5,18 @@
 // @ts-ignore: Unused imports
 import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as models$0 from "../models/models.js";
+
 export function GetDynamicPluginDefinitions(): $CancellablePromise<string> {
     return $Call.ByID(2905684001);
 }
 
-export function RegisterScriptAndBindToBus(topic: string, scriptID: string, rawJsString: string): $CancellablePromise<void> {
+export function GetMonacoEnvironment(topic: string): $CancellablePromise<string> {
+    return $Call.ByID(1463871715, topic);
+}
+
+export function RegisterScriptAndBindToBus(topic: models$0.EventKey, scriptID: string, rawJsString: string): $CancellablePromise<void> {
     return $Call.ByID(3684221790, topic, scriptID, rawJsString);
 }

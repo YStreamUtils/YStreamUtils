@@ -4,14 +4,25 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/dop251/goja"
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/ystreamutils/YStreamUtils/internal/models"
 	"github.com/ystreamutils/YStreamUtils/internal/utils"
 )
+
+type SchemaProvider interface {
+	GetEnvelopeSchema(eventKey string) string
+}
+
+type TypedSchema[T any] struct{}
+
+func (TypedSchema[T]) GetEnvelopeSchema(eventKey string) string {
+	var zeroEnvelope models.StreamEventEnvelope[T]
+	return utils.GenerateTSFields(zeroEnvelope, eventKey)
+}
 
 type ScriptsService struct {
 	BaseService
@@ -19,7 +30,7 @@ type ScriptsService struct {
 	pluginService *PluginService
 	mu            sync.RWMutex
 	cachedScripts map[string]*goja.Program
-	hostDtsPath   string
+	typeRegistry  map[models.EventKey]SchemaProvider
 }
 
 func NewScriptsService(ctx context.Context, plugins *PluginService) *ScriptsService {
@@ -28,11 +39,11 @@ func NewScriptsService(ctx context.Context, plugins *PluginService) *ScriptsServ
 		ctx:           ctx,
 		pluginService: plugins,
 		cachedScripts: make(map[string]*goja.Program),
-		hostDtsPath:   filepath.Join("frontend", "src", "lib", "types", "script-host.d.ts"),
+		typeRegistry:  make(map[models.EventKey]SchemaProvider),
 	}
 }
 
-func (ss *ScriptsService) RegisterScriptAndBindToBus(topic string, scriptID string, rawJsString string) error {
+func (ss *ScriptsService) RegisterScriptAndBindToBus(topic models.EventKey, scriptID string, rawJsString string) error {
 	log := ss.Logger.With("scriptId", scriptID, "topic", topic)
 
 	ss.mu.Lock()
@@ -46,7 +57,7 @@ func (ss *ScriptsService) RegisterScriptAndBindToBus(topic string, scriptID stri
 
 	ss.cachedScripts[scriptID] = program
 
-	application.Get().Event.On(topic, func(event *application.CustomEvent) {
+	application.Get().Event.On(string(topic), func(event *application.CustomEvent) {
 		vm := goja.New()
 
 		vm.Set("payload", event.Data)
@@ -117,7 +128,7 @@ func (ss *ScriptsService) generateJavascriptPluginObjectType() string {
 			if strings.HasPrefix(funcName, "_") || funcName == "main" || funcName == "memory" {
 				continue
 			}
-			fmt.Fprintf(&sb, "    %s: (...args) => _invokeWasmAction('%s', '%s', { Arguments: args.map(a => ({ ToInteger: () => a })) }),\n", funcName, ns, funcName)
+			fmt.Fprintf(&sb, "    %s: (...args) => _invokeWasmAction('%s', '%s', ...args),\n", funcName, ns, funcName)
 		}
 		sb.WriteString("};\n")
 	}
@@ -163,6 +174,43 @@ func (ss *ScriptsService) GetDynamicPluginDefinitions() (string, error) {
 	return sb.String(), nil
 }
 
+func (ss *ScriptsService) GetMonacoEnvironment(topic string) (string, error) {
+	eventKey := models.EventKey(topic)
+	provider, exists := ss.typeRegistry[eventKey]
+
+	generatedEnvelopeFields := ""
+	if exists {
+		generatedEnvelopeFields = provider.GetEnvelopeSchema(topic)
+	} else {
+		generatedEnvelopeFields = fmt.Sprintf("    event: \"%s\";\n    platform: string;\n    data: any;\n", topic)
+	}
+
+	wasmPluginDeclarations, _ := ss.GetDynamicPluginDefinitions()
+
+	fullEnvironment := fmt.Sprintf(`
+%s
+
+interface StreamEventEnvelope {
+%s}
+
+/**
+ * The event envelope injected matching the active event hook.
+ */
+declare const payload: StreamEventEnvelope;
+
+/**
+ * Safe Go-host bindings exposed to this script environment.
+ */
+declare namespace host {
+    function log(level: "debug" | "info" | "warn" | "error" | string, msg: string): void;
+}
+`, wasmPluginDeclarations, generatedEnvelopeFields)
+
+	return fullEnvironment, nil
+}
+
 func (ss *ScriptsService) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
+	ss.typeRegistry[models.EventKeyStreamChatMessage] = TypedSchema[models.StreamChatMessageEvent]{}
+	ss.typeRegistry[models.EventKeyYoutubeSuperchat] = TypedSchema[models.StreamSuperchatMessageEvent]{}
 	return nil
 }

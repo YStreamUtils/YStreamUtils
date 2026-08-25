@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Events } from "@wailsio/runtime";
   import { onMount, tick } from "svelte";
-  import { profiles } from "../profiles.svelte";
+  import { profiles } from "../auth.svelte";
   import {
     GetActiveBroadcastVideoIDs,
     FetchConcurrentViewers,

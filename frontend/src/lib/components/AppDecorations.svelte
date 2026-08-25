@@ -48,7 +48,7 @@
     height: var(--space-10);
     padding: 0 var(--space-2);
     padding-left: var(--space-4);
-    
+
     /* stylelint-disable-next-line defensive-css/no-user-select-none */
     user-select: none;
     background: light-dark(var(--neutral-200-tint), var(--neutral-900-tint));
@@ -74,22 +74,27 @@
   }
 
   .btn-system {
-    -webkit-app-region: no-drag;
+    display: flex;
+    flex-wrap: wrap;
+    place-content: center center;
     width: var(--space-12);
     height: var(--space-8);
     background: transparent;
     border: none;
+    -webkit-app-region: no-drag;
   }
 
   .sidebar-button {
-    -webkit-app-region: no-drag;
+    display: flex;
+    flex-wrap: wrap;
+    place-content: center center;
     width: var(--space-8);
     height: var(--space-8);
     background: transparent;
     border: none;
+    -webkit-app-region: no-drag;
   }
 
-  /* Scoped hover interactions to require standard user motion parameters */
   @media (hover: hover) and (prefers-reduced-motion: no-preference) {
     .controls button:hover,
     .sidebar-button:hover {
@@ -100,7 +105,9 @@
     .controls .btn-close:hover {
       color: white;
       background: #e81123;
-      transition: background 0.15s ease, color 0.15s ease;
+      transition:
+        background 0.15s ease,
+        color 0.15s ease;
     }
   }
 

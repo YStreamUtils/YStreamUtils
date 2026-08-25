@@ -6,53 +6,9 @@
   import { appState } from "../settings.svelte";
   import SettingsRow from "../components/SettingsRow.svelte";
   import ConnectedAccount from "../components/ConnectedAccount.svelte";
-  import { onMount } from "svelte";
-  import { profiles } from "../profiles.svelte";
-  import {
-    GetProfile,
-    LoginPlatform,
-  } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/services/authservice";
+  import * as auth from "../auth.svelte";
   import { Platform } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/models";
-
-  let isLoadingProfile = $state<Partial<Record<Platform, boolean>>>({});
-  let isLoggingIn = $state<Partial<Record<Platform, boolean>>>({});
-
-  onMount(async () => {
-    Object.values(Platform).forEach(async (p) => {
-      await fetchProfile(p);
-    });
-  });
-
-  async function fetchProfile(platform: Platform) {
-    isLoadingProfile[platform] = true;
-    try {
-      profiles[platform] = await GetProfile(Platform.PlatformYouTube);
-    } catch (err) {
-      console.error("Failed to recover profile:", err);
-    } finally {
-      isLoadingProfile[platform] = false;
-    }
-  }
-
-  async function handleConnect(platform: Platform) {
-    isLoggingIn[platform] = true;
-    try {
-      const success = await LoginPlatform(Platform.PlatformYouTube);
-      if (success) {
-        await fetchProfile(platform);
-      }
-    } catch (err) {
-      alert(`Authentication failed: ${err}`);
-    } finally {
-      isLoggingIn[platform] = false;
-    }
-  }
-
-  const platforms: Partial<Record<Platform, string>> = {
-    [Platform.PlatformYouTube]: "YouTube",
-    [Platform.PlatformTwitch]: "Twitch",
-    [Platform.PlatformKick]: "Kick",
-  };
+  import Card from "../components/Card.svelte";
 </script>
 
 {#if appState.settings}
@@ -66,25 +22,29 @@
       </header>
 
       <div class="settings-stack">
-        <div class="expander">
+        <Card>
           <Expander label="Linked Accounts" icon={User}>
-            {#each Object.entries(platforms) as [platform, display]}
+            {#each Object.entries(auth.platforms) as [platform, display], index (platform)}
               {@const platformKey = platform as Platform}
 
-              <SettingsRow title={display}>
+              {#if index > 0}
+                <hr class="settings-divider" />
+              {/if}
+
+              <SettingsRow title={display || "Null?"}>
                 <ConnectedAccount
                   platform={platformKey}
-                  isLoadingProfile={isLoadingProfile[platformKey] || false}
-                  profile={profiles[platformKey]}
-                  isLoggingIn={isLoggingIn[platformKey] || false}
-                  onConnect={() => handleConnect(platformKey)}
+                  isLoadingProfile={auth.isLoadingProfile[platformKey] || false}
+                  profile={auth.profiles[platformKey]}
+                  isLoggingIn={auth.isLoggingIn[platformKey] || false}
+                  onConnect={() => auth.handleConnect(platformKey)}
                 />
               </SettingsRow>
             {/each}
           </Expander>
-        </div>
+        </Card>
 
-        <div class="expander">
+        <Card>
           <Expander label="Appearance" icon={Palette}>
             <SettingsRow
               title="Theme"
@@ -111,7 +71,7 @@
               />
             </SettingsRow>
           </Expander>
-        </div>
+        </Card>
       </div>
     </main>
   </div>
@@ -161,39 +121,6 @@
     margin: var(--space-4) var(--space-0);
     background-color: light-dark(var(--neutral-200), var(--neutral-800-tint));
     border: none;
-  }
-
-  .expander {
-    background: light-dark(
-      rgb(245 245 247 / 70%),
-      color-mix(in srgb, var(--neutral-950) 65%, transparent)
-    );
-    border: 1px solid
-      light-dark(
-        rgb(0 0 0 / 8%),
-        color-mix(in srgb, var(--neutral-800-tint) 40%, transparent)
-      );
-    border-radius: var(--space-2);
-    box-shadow: 0 4px 30px rgb(0 0 0 / 3%);
-    backdrop-filter: blur(20px);
-  }
-
-  @media (prefers-reduced-motion: no-preference) {
-    .expander {
-      transition:
-        border-color 0.2s ease,
-        box-shadow 0.2s ease;
-    }
-  }
-
-  @media (hover: hover) {
-    .expander:hover {
-      border-color: light-dark(
-        rgb(0 0 0 / 15%),
-        color-mix(in srgb, var(--color-brand) 40%, transparent)
-      );
-      box-shadow: 0 4px 30px rgb(0 0 0 / 6%);
-    }
   }
 
   .toggle-checkbox {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Paintbrush } from "@lucide/svelte";
+  import Button from "./Button.svelte";
 
   interface Props {
     value?: string;
@@ -28,15 +29,16 @@
   }
 </script>
 
-<button
-  class="btn btn-center picker-trigger {className}"
+<Button
+  class="picker-trigger {className}"
   style="anchor-name: --picker-anchor-{id};"
   title="Open color picker"
+  variant="surface"
   popovertarget={id}
 >
   <div class="swatch preview" style:background-color={value}></div>
   <span class="hex">{value}</span>
-</button>
+</Button>
 
 <div
   bind:this={popoverElement}
@@ -62,13 +64,18 @@
     {/each}
   </div>
 
-  <button
+  <br/>
+  <Button
     type="button"
-    class="btn btn-center custom-btn"
+    class="custom-btn"
+    align="center"
+    variant="transparent"
+    icon={Paintbrush}
+    iconSize={14}
     onclick={() => nativePickerInput.click()}
   >
-    <Paintbrush size={14} /> Custom color
-  </button>
+  <span>Custom Color</span>
+  </Button>
 
   <input
     bind:this={nativePickerInput}
@@ -81,7 +88,7 @@
 </div>
 
 <style>
-.picker-trigger {
+:global(.picker-trigger) {
   gap: var(--space-2);
   padding: var(--space-1_5) var(--space-3);
   font-size: 0.75rem;
@@ -92,6 +99,7 @@
 
 .swatch {
   aspect-ratio: 1;
+  margin-right: var(--space-1);
   cursor: pointer;
   background: transparent;
   border: 1px solid light-dark(var(--neutral-200), var(--neutral-800-tint));
@@ -111,9 +119,7 @@
   right: anchor(right);
   flex-direction: column;
   gap: var(--space-2_5);
-  width: 10rem;
-  padding: var(--space-3);
-  margin: 0;
+  padding: var(--space-1_5);
   margin-top: var(--space-1_5);
   background-color: light-dark(var(--neutral-050), var(--neutral-900-tint));
   border: 1px solid light-dark(var(--neutral-200), var(--neutral-800-tint));
@@ -159,16 +165,6 @@
 .swatch.active {
   outline: 2px solid var(--color-brand);
   outline-offset: 1px;
-}
-
-.custom-btn {
-  gap: var(--space-1_5);
-  width: 100%;
-  padding: var(--space-1_5);
-  font-size: 0.75rem;
-  background-color: light-dark(var(--neutral-100), var(--neutral-800-tint));
-  border: 1px solid light-dark(var(--neutral-200), var(--neutral-700-tint));
-  border-radius: var(--space-1);
 }
 
 .sr-only {

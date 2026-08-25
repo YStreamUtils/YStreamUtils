@@ -2,15 +2,17 @@ import type { Component } from "svelte";
 import Home from "./pages/Home.svelte";
 import Settings from "./pages/Settings.svelte";
 import Stream from "./pages/Stream.svelte";
+import Script from "./pages/Script.svelte";
 
 export const pages: Record<string, Component> = {
   home: Home,
   settings: Settings,
-  stream: Stream
+  stream: Stream,
+  script: Script,
 };
 
-export const router = $state<{current: keyof typeof pages}>({
-  current: sessionStorage.getItem("route") || "home"
+export const router = $state<{ current: keyof typeof pages }>({
+  current: sessionStorage.getItem("route") || "home",
 });
 
 export function navigateTo(route: string) {
@@ -18,5 +20,5 @@ export function navigateTo(route: string) {
 }
 
 export const sidebar = $state({
-  isOpen: JSON.parse(sessionStorage.getItem("sidebarOpen") || "true")
+  isOpen: JSON.parse(sessionStorage.getItem("sidebarOpen") || "true"),
 });

@@ -134,6 +134,15 @@ func (s *AuthService) LoginPlatform(ctx context.Context, platform models.Platfor
 			return false, err
 		}
 
+		driver, exists := s.profileDrivers[platform]
+		if !exists {
+			return false, fmt.Errorf("no profile driver registered for platform: %s", platform)
+		}
+
+		if err = driver.CreateClient(ctx); err != nil {
+			return false, err
+		}
+
 		s.Logger.Info("Login operation succeeded and saved to keyring", slog.String("platform", string(platform)))
 		return true, nil
 

@@ -8,6 +8,7 @@
 
   import "@fontsource/jetbrains-mono";
   import "./lib/style.css";
+  import { loadAllProfiles } from "./lib/auth.svelte";
 
   let ActiveScreen = $derived(pages[router.current]);
   $effect(() => {
@@ -20,7 +21,8 @@
 
   onMount(async () => {
     await initSettings();
-    console.log(appState);
+    await loadAllProfiles();
+    
   });
 
   $effect(() => {
@@ -61,7 +63,6 @@
     flex: 1;
     grid-template-columns: [sidebar] 200px [main] minmax(0, 1fr);
     min-height: 0;
-    
   }
 
   .app-container.closed {
@@ -90,8 +91,8 @@
     background-repeat: no-repeat;
   }
 
-  @media(prefers-reduced-motion: no-preference){
-    .app-container{
+  @media (prefers-reduced-motion: no-preference) {
+    .app-container {
       transition: grid-template-columns 0.3s ease-in-out;
     }
   }

@@ -2,16 +2,18 @@ package models
 
 import "time"
 
-type StreamEventEnvelope struct {
-	Event     string     `json:"event"`
-	Platform  Platform   `json:"platform"`
-	Timestamp *time.Time `json:"timestamp,omitempty"`
-	Data      any        `json:"data"`
+type StreamEventEnvelope[T any] struct {
+	Event     StreamEventName `json:"event"`
+	Platform  Platform        `json:"platform"`
+	Timestamp *time.Time      `json:"timestamp,omitempty"`
+	Data      T             `json:"data"`
 }
 
-func NewStreamEvent(event string, platform Platform, data any) StreamEventEnvelope {
+type StreamEventName string
+
+func NewStreamEvent[T any](event StreamEventName, platform Platform, data T) StreamEventEnvelope[T] {
 	now := time.Now()
-	return StreamEventEnvelope{
+	return StreamEventEnvelope[T]{
 		Event:     event,
 		Platform:  platform,
 		Timestamp: &now,
@@ -27,16 +29,22 @@ type BaseUserData struct {
 	Message     string `json:"message"`
 }
 
-type StreamChatMessage struct {
+const StreamChatMessage StreamEventName = "chat"
+
+type StreamChatMessageEvent struct {
 	BaseUserData
 }
 
-type StreamSuperchatMessage struct {
+const StreamSuperchatMessage StreamEventName = "chat"
+
+type StreamSuperchatMessageEvent struct {
 	BaseUserData
 	Amount string `json:"amount"`
 }
 
-type StreamCheerMessage struct {
+const StreamCheerMessage StreamEventName = "chat"
+
+type StreamCheerMessageEvent struct {
 	BaseUserData
 	Bits int64 `json:"bits"`
 }

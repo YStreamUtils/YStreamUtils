@@ -1,42 +1,53 @@
 <script lang="ts">
-  import Button from './Button.svelte';
-  import { House, Tv, Settings } from '@lucide/svelte';
-  import { navigateTo, router, sidebar } from '../navigation.svelte';
+  import Button from "./Button.svelte";
+  import { House, Tv, Settings, FileTerminal } from "@lucide/svelte";
+  import { navigateTo, router, sidebar } from "../navigation.svelte";
 </script>
 
 <div id="sidebar" class="sidebar">
   <nav class="top-nav">
     <Button
-      variant="surface"
+      variant="transparent"
       align="left"
       icon={House}
       fullWidth={true}
-      class={router.current === 'home' ? 'active' : ''}
-      onclick={() => navigateTo('home')}
+      active={router.current === "home"}
+      onclick={() => navigateTo("home")}
     >
       <p class:hidden={!sidebar.isOpen}>Home</p>
     </Button>
 
     <Button
-      variant="surface"
+      variant="transparent"
       align="left"
       icon={Tv}
       fullWidth={true}
-      class={router.current === 'stream' ? 'active' : ''}
-      onclick={() => navigateTo('stream')}
+      active={router.current === "stream"}
+      onclick={() => navigateTo("stream")}
     >
       <p class:hidden={!sidebar.isOpen}>Stream</p>
+    </Button>
+
+    <Button
+      variant="transparent"
+      align="left"
+      icon={FileTerminal}
+      fullWidth={true}
+      active={router.current === "script"}
+      onclick={() => navigateTo("script")}
+    >
+      <p class:hidden={!sidebar.isOpen}>Scripts</p>
     </Button>
   </nav>
 
   <div class="bottom-nav">
     <Button
-      variant="surface"
+      variant="transparent"
       align="left"
       icon={Settings}
       fullWidth={true}
-      class={router.current === 'settings' ? 'active' : ''}
-      onclick={() => navigateTo('settings')}
+      active={router.current === "settings"}
+      onclick={() => navigateTo("settings")}
     >
       <p class:hidden={!sidebar.isOpen}>Settings</p>
     </Button>
