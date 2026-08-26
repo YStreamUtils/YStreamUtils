@@ -52,10 +52,10 @@ func setupServices() []application.Service {
 	chatService := services.NewChatService()
 	chatService.RegisterDriver("youtube", youtubeService)
 
-	pluginService := services.NewPluginService(ctx, userConfigDir)
+	settingsService := services.NewSettingsService(userConfigDir)
+	pluginService := services.NewPluginService(ctx, userConfigDir, settingsService)
 
 	scriptsService := services.NewScriptsService(ctx, pluginService, youtubeService, vaultService)
-	settingsService := services.NewSettingsService(userConfigDir)
 
 	return []application.Service{
 		application.NewService(vaultService),

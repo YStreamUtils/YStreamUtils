@@ -7,14 +7,22 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as types$0 from "../../../YStreamUtils-Plugin-Registry/ci/types/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as $models from "./models.js";
+
+export function DownloadAndInstallPlugin(manifest: types$0.PluginManifest): $CancellablePromise<void> {
+    return $Call.ByID(1452063055, manifest);
+}
+
+export function FetchAllRegistryPlugins(): $CancellablePromise<types$0.PluginManifest[] | null> {
+    return $Call.ByID(2777702260);
+}
 
 export function GetActivePlugins(): $CancellablePromise<$models.ActivePlugin[] | null> {
     return $Call.ByID(718559694);
-}
-
-export function InstallPluginFromManifestTOML(tomlBytes: string | null): $CancellablePromise<void> {
-    return $Call.ByID(3350607661, tomlBytes);
 }
 
 export function ReloadLocalPlugins(): $CancellablePromise<void> {

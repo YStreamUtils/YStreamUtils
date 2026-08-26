@@ -19,6 +19,7 @@
     "@monaco-editor/loader": "^1.7.0",
     "@wailsio/runtime": "^3.0.0-beta.12",
     "bits-ui": "^2.19.0",
+    "marked": "^18.0.11",
     "monaco-editor": "^0.56.0",
     "shiki": "^4.4.3"
   },

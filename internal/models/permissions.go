@@ -1,18 +1,18 @@
 package models
 
-type Permission string
+import "github.com/YStreamUtils/YStreamUtils-Plugin-Registry/ci/types"
 
 const (
-	PermissionNetwork Permission = "network"
+	PermissionNetwork types.Permission = "network"
 
-	PermissionYoutube Permission = "youtube"
-	PermissionTwitch  Permission = "twitch"
-	PermissionKick    Permission = "kick"
-	PermissionDiscord Permission = "discord"
+	PermissionYoutube types.Permission = "youtube"
+	PermissionTwitch  types.Permission = "twitch"
+	PermissionKick    types.Permission = "kick"
+	PermissionDiscord types.Permission = "discord"
 
-	PermissionStorageRead  Permission = "storage:read"
-	PermissionStorageWrite Permission = "storage:write"
+	PermissionStorageRead  types.Permission = "storage:read"
+	PermissionStorageWrite types.Permission = "storage:write"
 
-	PermissionFilesystemRead  Permission = "filesystem:read"
-	PermissionFilesystemWrite Permission = "filesystem:write"
+	PermissionFilesystemRead  types.Permission = "filesystem:read"
+	PermissionFilesystemWrite types.Permission = "filesystem:write"
 )

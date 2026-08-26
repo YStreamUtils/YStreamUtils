@@ -7,12 +7,15 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as types$0 from "../../../YStreamUtils-Plugin-Registry/ci/types/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as goja$0 from "../../../../dop251/goja/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as models$0 from "../models/models.js";
 
-export function CreateScopedHostObject(vm: goja$0.Runtime | null, pluginName: string, permissions: models$0.Permission[] | null): $CancellablePromise<goja$0.$Object | null> {
+export function CreateScopedHostObject(vm: goja$0.Runtime | null, pluginName: string, permissions: types$0.Permission[] | null): $CancellablePromise<goja$0.$Object | null> {
     return $Call.ByID(3821519586, vm, pluginName, permissions);
 }
 

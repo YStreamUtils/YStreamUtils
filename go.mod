@@ -1,6 +1,6 @@
 module github.com/ystreamutils/YStreamUtils
 
-go 1.25.0
+go 1.25.1
 
 require (
 	github.com/dop251/goja v0.0.0-20260806115107-493f22071ef6
@@ -14,6 +14,7 @@ require (
 	cloud.google.com/go/auth v0.23.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+	github.com/YStreamUtils/YStreamUtils-Plugin-Registry/ci v0.0.0-20260826185005-8e15951e83a0
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/dlclark/regexp2/v2 v2.5.2 // indirect

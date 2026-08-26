@@ -3,18 +3,23 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as models$0 from "../models/models.js";
+import * as types$0 from "../../../YStreamUtils-Plugin-Registry/ci/types/models.js";
 
 export interface ActivePlugin {
     "Name": string;
     "JavaScriptCode": string;
     "TypeScriptDefs": string;
     "Functions": string[] | null;
-    "Manifest": models$0.PluginManifest;
+    "Manifest": types$0.PluginManifest;
+}
+
+export interface PluginSettings {
+    "Repositories": string[] | null;
 }
 
 export interface Settings {
     "UISettings": UISettings;
+    "PluginSettings": PluginSettings;
 }
 
 export interface UISettings {

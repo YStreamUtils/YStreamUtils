@@ -22,6 +22,7 @@ export {
 
 export type {
     ActivePlugin,
+    PluginSettings,
     Settings,
     UISettings
 } from "./models.js";

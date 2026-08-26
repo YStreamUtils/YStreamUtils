@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/YStreamUtils/YStreamUtils-Plugin-Registry/ci/types"
 	"github.com/dop251/goja"
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/ystreamutils/YStreamUtils/internal/bridges"
@@ -126,7 +127,7 @@ func (ss *ScriptsService) InitializeVMPool() error {
 	return nil
 }
 
-func (ss *ScriptsService) CreateScopedHostObject(vm *goja.Runtime, pluginName string, permissions []models.Permission) *goja.Object {
+func (ss *ScriptsService) CreateScopedHostObject(vm *goja.Runtime, pluginName string, permissions []types.Permission) *goja.Object {
 	hostObj := vm.NewObject()
 
 	authBridge := bridges.NewAuthBridge(ss.vault)

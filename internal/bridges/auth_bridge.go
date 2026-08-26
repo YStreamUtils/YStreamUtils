@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/YStreamUtils/YStreamUtils-Plugin-Registry/ci/types"
 	"github.com/dop251/goja"
 	"github.com/ystreamutils/YStreamUtils/internal/models"
 	"github.com/ystreamutils/YStreamUtils/internal/ports"
@@ -19,13 +20,13 @@ func NewAuthBridge(vault ports.SecretVault) *AuthBridge {
 	}
 }
 
-func (ab *AuthBridge) GetAccessToken(call goja.FunctionCall, vm *goja.Runtime, pluginName string, permissions []models.Permission) goja.Value {
+func (ab *AuthBridge) GetAccessToken(call goja.FunctionCall, vm *goja.Runtime, pluginName string, permissions []types.Permission) goja.Value {
 	if len(call.Arguments) < 1 {
 		panic(vm.NewTypeError("getAccessToken requires at least 1 argument (platformName)"))
 	}
 
 	platformName := call.Arguments[0].String()
-	requiredPerm := models.Permission(fmt.Sprintf("auth:%s", platformName))
+	requiredPerm := types.Permission(fmt.Sprintf("auth:%s", platformName))
 
 	hasPerm := slices.Contains(permissions, requiredPerm)
 

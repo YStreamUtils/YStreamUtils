@@ -1,59 +1,34 @@
 <script lang="ts">
   import Button from "./Button.svelte";
-  import { House, Tv, Settings, FileTerminal } from "@lucide/svelte";
-  import { navigateTo, router, sidebar } from "../navigation.svelte";
+  import { House, Tv, Settings, FileTerminal, Component, Home, Puzzle } from "@lucide/svelte";
+  import { navigateTo, router, sidebar, pages } from "../navigation.svelte";
 </script>
 
 <div id="sidebar" class="sidebar">
   <nav class="top-nav">
-    <Button
-      variant="transparent"
-      align="left"
-      icon={House}
-      fullWidth={true}
-      active={router.current === "home"}
-      onclick={() => navigateTo("home")}
-    >
-      <p class:hidden={!sidebar.isOpen}>Home</p>
-    </Button>
-
-    <Button
-      variant="transparent"
-      align="left"
-      icon={Tv}
-      fullWidth={true}
-      active={router.current === "stream"}
-      onclick={() => navigateTo("stream")}
-    >
-      <p class:hidden={!sidebar.isOpen}>Stream</p>
-    </Button>
-
-    <Button
-      variant="transparent"
-      align="left"
-      icon={FileTerminal}
-      fullWidth={true}
-      active={router.current === "script"}
-      onclick={() => navigateTo("script")}
-    >
-      <p class:hidden={!sidebar.isOpen}>Scripts</p>
-    </Button>
+    {@render navButton(House, "home", "Home")}
+    {@render navButton(Tv, "stream", "Stream")}
+    {@render navButton(FileTerminal, "script", "Script")}
   </nav>
 
   <div class="bottom-nav">
-    <Button
-      variant="transparent"
-      align="left"
-      icon={Settings}
-      fullWidth={true}
-      active={router.current === "settings"}
-      onclick={() => navigateTo("settings")}
-    >
-      <p class:hidden={!sidebar.isOpen}>Settings</p>
-    </Button>
+  {@render navButton(Puzzle, "plugins", "Plugins")}
+    {@render navButton(Settings, "settings", "Settings")}
   </div>
 </div>
 
+{#snippet navButton(icon: typeof House, path: keyof typeof pages, title: string)}
+<Button
+      variant="transparent"
+      align="left"
+      icon={icon}
+      fullWidth={true}
+      active={router.current === path}
+      onclick={() => navigateTo(path)}
+    >
+      <p class:hidden={!sidebar.isOpen}>{title}</p>
+    </Button>
+{/snippet}
 <style>
   .sidebar {
     box-sizing: border-box;

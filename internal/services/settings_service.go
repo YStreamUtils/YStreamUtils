@@ -9,7 +9,8 @@ import (
 )
 
 type Settings struct {
-	UISettings UISettings `toml:"ui"`
+	UISettings     UISettings     `toml:"ui"`
+	PluginSettings PluginSettings `toml:"plugins"`
 }
 
 type UISettings struct {
@@ -18,11 +19,20 @@ type UISettings struct {
 	FullCloseSidebar bool   `toml:"fullyCloseSidebar"`
 }
 
+type PluginSettings struct {
+	Repositories []string `toml:"repos"`
+}
+
 var DefaultSettings = Settings{
 	UISettings: UISettings{
 		Theme:            "dark",
 		Color:            "#9900ff",
 		FullCloseSidebar: false,
+	},
+	PluginSettings: PluginSettings{
+		Repositories: []string{
+			"https://ystreamutils.github.io/YStreamUtils-Plugin-Registry/registry.toml",
+		},
 	},
 }
 
@@ -50,11 +60,15 @@ func NewSettingsService(settingsPath string) *SettingsService {
 func (s *SettingsService) LoadSettings() error {
 	s.Logger.Info("trying to load settings configuration from file system", "path", s.settingsPath)
 
-	_, err := toml.DecodeFile(s.settingsPath, s.Settings)
+	settings := &DefaultSettings
+
+	_, err := toml.DecodeFile(s.settingsPath, settings)
 	if err != nil {
 		s.Logger.Error("failed to decode configuration file path target", "error", err.Error())
 		return err
 	}
+
+	s.Settings = settings
 
 	return nil
 }
