@@ -33,12 +33,13 @@ const StreamChatMessage StreamEventName = "chat"
 
 type StreamChatMessageEvent struct {
 	BaseUserData
+	LiveChatID string `json:"liveChatId"`
 }
 
 const StreamSuperchatMessage StreamEventName = "superchat"
 
 type StreamSuperchatMessageEvent struct {
-	BaseUserData
+	StreamChatMessageEvent
 	Amount string `json:"amount"`
 }
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -24,6 +25,37 @@ type YouTubeService struct {
 	BaseService
 	vault      ports.SecretVault
 	apiService *youtube.Service
+}
+
+func (y *YouTubeService) SendChannelReply(liveChatID string, authorID string, replyText string) error {
+	messageText := fmt.Sprintf("%s: %s", authorID, replyText)
+	messageDetails := &youtube.LiveChatTextMessageDetails{
+		MessageText: messageText,
+	}
+
+	snippet := &youtube.LiveChatMessageSnippet{
+		LiveChatId:         liveChatID,
+		Type:               "textMessageEvent",
+		TextMessageDetails: messageDetails,
+	}
+
+	liveChatMessage := &youtube.LiveChatMessage{
+		Snippet: snippet,
+	}
+
+	call := y.apiService.LiveChatMessages.Insert([]string{"snippet"}, liveChatMessage)
+
+	response, err := call.Do()
+	if err != nil {
+		return fmt.Errorf("failed to send chat message: %w", err)
+	}
+
+	y.Logger.Info("Successfully sent YouTube chat message",
+		slog.String("message_id", response.Id),
+		slog.String("live_chat_id", liveChatID),
+	)
+	return nil
+
 }
 
 func NewYouTubeService(ctx context.Context, v ports.SecretVault) (*YouTubeService, error) {
@@ -280,12 +312,15 @@ func (y *YouTubeService) processIncomingItem(item *youtube_protobuf.LiveChatMess
 
 	case youtube_protobuf.LiveChatMessageSnippet_TypeWrapper_SUPER_CHAT_EVENT:
 		scMsg := models.StreamSuperchatMessageEvent{
-			BaseUserData: models.BaseUserData{
-				Message:     item.Snippet.GetDisplayMessage(),
-				MessageID:   item.GetId(),
-				Author:      author,
-				AuthorID:    *item.GetSnippet().AuthorChannelId,
-				AuthorColor: GetYouTubeUserColor(item),
+			StreamChatMessageEvent: models.StreamChatMessageEvent{
+				BaseUserData: models.BaseUserData{
+					Message:     item.Snippet.GetDisplayMessage(),
+					MessageID:   item.GetId(),
+					Author:      author,
+					AuthorID:    *item.GetSnippet().AuthorChannelId,
+					AuthorColor: GetYouTubeUserColor(item),
+				},
+				LiveChatID: *item.Snippet.LiveChatId,
 			},
 			Amount: *item.Snippet.GetSuperChatDetails().AmountDisplayString,
 		}
@@ -306,6 +341,7 @@ func (y *YouTubeService) processIncomingItem(item *youtube_protobuf.LiveChatMess
 				AuthorID:    *item.GetSnippet().AuthorChannelId,
 				AuthorColor: GetYouTubeUserColor(item),
 			},
+			LiveChatID: *item.Snippet.LiveChatId,
 		}
 
 		event.Emit(string(models.EventKeyStreamChatMessage), models.NewStreamEvent(models.StreamChatMessage, models.PlatformYouTube, chatMsg))

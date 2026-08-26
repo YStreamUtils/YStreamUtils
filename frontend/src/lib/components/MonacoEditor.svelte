@@ -35,12 +35,19 @@
         extraLibsDisposable.dispose();
       }
 
+      // Stripped the 'export {}' block which isolates typescript definitions,
+      // and placed them cleanly inside the active compiler pool scope.
       const typeContent = `
-        declare global {
-          ${tsDefinitions}
+        ${tsDefinitions}
+        
+        // Mock helper interface for raw console validation checks
+        interface Window {
+           __DEBUG_MONACO_ENVIRONMENT__: string;
         }
-        export {};
       `;
+
+      // Expose to window for quick inspection via browser dev tools console
+      (window as any).__DEBUG_MONACO_ENVIRONMENT__ = typeContent;
 
       const tsDefaults = monacoInstance.typescript.typescriptDefaults;
       const typeUri = "file:///node_modules/@types/ystream-internal/index.d.ts";
@@ -65,6 +72,7 @@
         module: monacoInstance.typescript.ModuleKind.None,
         strict: true,
         allowNonTsExtensions: true,
+        noLib: false, // Ensures base types like string/number don't drop out of tracking
       });
 
       await updateTypings(eventKey);
@@ -77,7 +85,6 @@
         langs: ["typescript", "javascript", "json"],
       });
 
-      // yippie ts
       shikiToMonaco(highlighter, monacoInstance as any);
 
       editorInstance = monacoInstance.editor.create(container, {
@@ -133,16 +140,22 @@
   });
 </script>
 
-<div class="editor-viewport" bind:this={container}></div>
+<div class="editor-outer-wrapper">
+  <div class="editor-viewport" bind:this={container}></div>
+</div>
 
 <style>
+  .editor-outer-wrapper {
+    width: 100%;
+    padding-top: 1rem;
+  }
+
   .editor-viewport {
     display: flex;
     flex-wrap: wrap;
     width: 100%;
     height: 30rem;
     min-height: 12rem;
-    overflow: hidden;
     border-radius: 4px;
   }
 </style>

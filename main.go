@@ -53,11 +53,8 @@ func setupServices() []application.Service {
 	chatService.RegisterDriver("youtube", youtubeService)
 
 	pluginService := services.NewPluginService(ctx, userConfigDir)
-	if err := pluginService.LoadPlugins(); err != nil {
-		log.Printf("failed baseline plugin compilation: %v", err)
-	}
 
-	scriptsService := services.NewScriptsService(ctx, pluginService)
+	scriptsService := services.NewScriptsService(ctx, pluginService, youtubeService, vaultService)
 	settingsService := services.NewSettingsService(userConfigDir)
 
 	return []application.Service{

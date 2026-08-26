@@ -24,17 +24,21 @@
 
 <Dropdown id="theme-menu" width="8.5rem">
   {#snippet trigger()}
-    <Button 
-      class="select-trigger" 
+    <Button
+      color="surface"
+      variant="surface"
+      align="left"
       popovertarget="theme-menu"
-      onclick={() => isOpen = !isOpen}
+      onclick={() => (isOpen = !isOpen)}
     >
-      <span class="active-group">
-        <ActiveIcon size={14} /> 
-        {activeTheme.label}
-      </span>
-      <span class="chevron" class:rotated={isOpen}>
-        <ChevronDown size={14} opacity="0.7" />
+      <span class="trigger-layout">
+        <span class="active-group">
+          <ActiveIcon size={14} />
+          {activeTheme.label}
+        </span>
+        <span class="chevron" class:rotated={isOpen}>
+          <ChevronDown size={14} opacity="0.7" />
+        </span>
       </span>
     </Button>
   {/snippet}
@@ -43,11 +47,13 @@
     {#each themes as theme}
       <Button
         type="button"
-        fullWidth={true}
+        color="surface"
         variant="transparent"
+        fullWidth={true}
         icon={theme.icon}
         iconSize={14}
-        class="menu-btn {value === theme.value? "selected" : ""}"
+        align="left"
+        active={value === theme.value}
         onclick={() => {
           value = theme.value;
           isOpen = false;
@@ -61,6 +67,14 @@
 </Dropdown>
 
 <style>
+  .trigger-layout {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+
   .active-group {
     display: flex;
     flex-wrap: wrap;
@@ -72,6 +86,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    margin-left: var(--space-2);
   }
 
   .chevron.rotated {

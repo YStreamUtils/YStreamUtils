@@ -5,7 +5,7 @@
   import Card from "../components/Card.svelte";
   import MonacoEditor from "../components/MonacoEditor.svelte";
   import { RegisterScriptAndBindToBus } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/services/scriptsservice";
-    import { Events } from "@wailsio/runtime";
+  import { Events } from "@wailsio/runtime";
 
   let currentKey = $state<EventKey>(EventKey.EventKeyStreamChatMessage);
   let currentTheme = $state("goja-dark");
@@ -23,17 +23,15 @@
   async function handleSave() {
     try {
       RegisterScriptAndBindToBus(currentKey, "script_name", userScript);
-    }
-    catch(error) {
-      console.error(error)
-    }
-    finally {
-      alert(`Script ${"script_name"} saved and bound to ${currentKey}`)
+    } catch (error) {
+      console.error(error);
+    } finally {
+      alert(`Script ${"script_name"} saved and bound to ${currentKey}`);
     }
   }
 
   async function testButton() {
-    Events.Emit(EventKey.EventKeyManualInvoke)
+    Events.Emit(EventKey.EventKeyManualInvoke);
   }
 </script>
 
@@ -53,8 +51,8 @@
         </option>
       {/each}
     </select>
-    <Button variant="success" icon={Save} onclick={handleSave}>Save</Button>
-    <Button variant="warning" icon={Check} onclick={testButton}>Test</Button>
+    <Button color="success" icon={Save} onclick={handleSave}>Save</Button>
+    <Button color="warning" icon={Check} onclick={testButton}>Test</Button>
     <MonacoEditor bind:value={userScript} eventKey={currentKey} />
   </div>
 </Card>

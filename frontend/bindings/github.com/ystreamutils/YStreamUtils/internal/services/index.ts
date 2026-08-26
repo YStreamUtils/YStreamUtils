@@ -21,6 +21,7 @@ export {
 };
 
 export type {
+    ActivePlugin,
     Settings,
     UISettings
 } from "./models.js";

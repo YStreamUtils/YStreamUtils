@@ -7,7 +7,14 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as goja$0 from "../../../../dop251/goja/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as models$0 from "../models/models.js";
+
+export function CreateScopedHostObject(vm: goja$0.Runtime | null, pluginName: string, permissions: models$0.Permission[] | null): $CancellablePromise<goja$0.$Object | null> {
+    return $Call.ByID(3821519586, vm, pluginName, permissions);
+}
 
 export function GetDynamicPluginDefinitions(): $CancellablePromise<string> {
     return $Call.ByID(2905684001);
@@ -15,6 +22,10 @@ export function GetDynamicPluginDefinitions(): $CancellablePromise<string> {
 
 export function GetMonacoEnvironment(topic: string): $CancellablePromise<string> {
     return $Call.ByID(1463871715, topic);
+}
+
+export function InitializeVMPool(): $CancellablePromise<void> {
+    return $Call.ByID(3005730738);
 }
 
 export function RegisterScriptAndBindToBus(topic: models$0.EventKey, scriptID: string, rawJsString: string): $CancellablePromise<void> {

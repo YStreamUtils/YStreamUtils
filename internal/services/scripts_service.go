@@ -4,53 +4,180 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 
 	"github.com/dop251/goja"
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/ystreamutils/YStreamUtils/internal/bridges"
 	"github.com/ystreamutils/YStreamUtils/internal/models"
+	"github.com/ystreamutils/YStreamUtils/internal/ports"
 	"github.com/ystreamutils/YStreamUtils/internal/utils"
 )
 
-type SchemaProvider interface {
-	GetEnvelopeSchema(eventKey string) string
-}
-
-type TypedSchema[T any] struct{}
-
-func (TypedSchema[T]) GetEnvelopeSchema(eventKey string) string {
-	var zeroEnvelope models.StreamEventEnvelope[T]
-	return utils.GenerateTSFields(zeroEnvelope, eventKey)
-}
-
 type EmptyStruct struct{}
 
-func (EmptyStruct) GetEnvelopeSchema(eventKey string) string {
-	return ""
-}
-
 type ScriptCache struct {
-	Program     goja.Program
+	Program     *goja.Program
 	Unsubscribe func()
 }
+
 type ScriptsService struct {
 	BaseService
-	ctx           context.Context
-	pluginService *PluginService
-	mu            sync.RWMutex
-	cachedScripts map[string]*ScriptCache
-	typeRegistry  map[models.EventKey]SchemaProvider
+	ctx            context.Context
+	pluginService  *PluginService
+	youtubeService *YouTubeService
+	vault          ports.SecretVault
+	mu             sync.RWMutex
+	cachedScripts  map[string]*ScriptCache
+	typeRegistry   map[models.EventKey]any
+	poolMu         sync.RWMutex
+	vmPool         *sync.Pool
+	factoryBundle  *goja.Program
 }
 
-func NewScriptsService(ctx context.Context, plugins *PluginService) *ScriptsService {
+func NewScriptsService(ctx context.Context, plugins *PluginService, youtubeService *YouTubeService, vault ports.SecretVault) *ScriptsService {
 	return &ScriptsService{
-		BaseService:   NewBaseService("ScriptsService"),
-		ctx:           ctx,
-		pluginService: plugins,
-		cachedScripts: make(map[string]*ScriptCache),
-		typeRegistry:  make(map[models.EventKey]SchemaProvider),
+		BaseService:    NewBaseService("ScriptsService"),
+		ctx:            ctx,
+		pluginService:  plugins,
+		youtubeService: youtubeService,
+		cachedScripts:  make(map[string]*ScriptCache),
+		typeRegistry:   make(map[models.EventKey]any),
 	}
+}
+
+func (ss *ScriptsService) InitializeVMPool() error {
+	ss.poolMu.Lock()
+	defer ss.poolMu.Unlock()
+
+	activePlugins := ss.pluginService.GetActivePlugins()
+
+	ss.vmPool = &sync.Pool{
+		New: func() any {
+			vm := goja.New()
+			vm.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
+
+			pluginsObj := vm.NewObject()
+			_ = vm.Set("plugins", pluginsObj)
+
+			for _, p := range activePlugins {
+				scopedHost := ss.CreateScopedHostObject(vm, p.Name, p.Manifest.Permissions)
+
+				_ = vm.Set("host", scopedHost)
+
+				moduleObj := vm.NewObject()
+				moduleExports := vm.NewObject()
+				_ = moduleObj.Set("exports", moduleExports)
+
+				_ = vm.Set("module", moduleObj)
+				_ = vm.Set("exports", moduleExports)
+
+				_, err := vm.RunString(p.JavaScriptCode)
+				if err != nil {
+					continue
+				}
+
+				finalExports := moduleObj.Get("exports").ToObject(vm)
+				pluginInstance := vm.NewObject()
+
+				for _, key := range finalExports.Keys() {
+					if key == "__esModule" || key == "default" || key == "host" {
+						continue
+					}
+
+					rawFunc, ok := goja.AssertFunction(finalExports.Get(key))
+					if !ok {
+						continue
+					}
+
+					boundMethod := vm.ToValue(func(call goja.FunctionCall) goja.Value {
+						_ = vm.Set("host", scopedHost)
+
+						res, err := rawFunc(goja.Undefined(), call.Arguments...)
+						if err != nil {
+							panic(err)
+						}
+						return res
+					})
+
+					_ = pluginInstance.Set(key, boundMethod)
+				}
+
+				freezeFunc, _ := goja.AssertFunction(vm.Get("Object").ToObject(vm).Get("freeze"))
+				_, _ = freezeFunc(goja.Undefined(), pluginInstance)
+
+				safeNamespaceName := strings.ReplaceAll(p.Name, "-", "_")
+				_ = pluginsObj.Set(safeNamespaceName, pluginInstance)
+			}
+
+			_ = vm.Set("module", goja.Undefined())
+			_ = vm.Set("exports", goja.Undefined())
+			_ = vm.Set("host", goja.Undefined())
+
+			freezeFunc, _ := goja.AssertFunction(vm.Get("Object").ToObject(vm).Get("freeze"))
+			_, _ = freezeFunc(goja.Undefined(), pluginsObj)
+
+			return vm
+		},
+	}
+
+	return nil
+}
+
+func (ss *ScriptsService) CreateScopedHostObject(vm *goja.Runtime, pluginName string, permissions []models.Permission) *goja.Object {
+	hostObj := vm.NewObject()
+
+	authBridge := bridges.NewAuthBridge(ss.vault)
+	fetchBridge := bridges.NewFetchBridge()
+
+	authObj := vm.NewObject()
+	_ = hostObj.Set("auth", authObj)
+	_ = authObj.Set("getAccessToken", func(call goja.FunctionCall) goja.Value {
+		return authBridge.GetAccessToken(call, vm, pluginName, permissions)
+	})
+
+	networkObj := vm.NewObject()
+	_ = hostObj.Set("network", networkObj)
+	_ = networkObj.Set("fetch", func(call goja.FunctionCall) goja.Value {
+		hasPerm := slices.Contains(permissions, models.PermissionNetwork)
+
+		if !hasPerm {
+			panic(vm.NewTypeError(fmt.Sprintf("Security Error: Plugin '%s' lacks 'network' permission.", pluginName)))
+		}
+
+		return fetchBridge.Fetch(call, vm)
+	})
+
+	youtubeObj := vm.NewObject()
+	_ = hostObj.Set("youtube", youtubeObj)
+
+	_ = youtubeObj.Set("replyToMessage", func(call goja.FunctionCall) goja.Value {
+		hasPerm := slices.Contains(permissions, models.PermissionYoutube)
+		if !hasPerm {
+			panic(vm.NewTypeError(fmt.Sprintf("Security Error: Plugin '%s' lacks 'youtube' permissions.", pluginName)))
+		}
+
+		liveChatID := call.Argument(0).String()
+		authorID := call.Argument(1).String()
+		replyText := call.Argument(2).String()
+
+		err := ss.youtubeService.SendChannelReply(liveChatID, authorID, replyText)
+		if err != nil {
+			return vm.ToValue(map[string]interface{}{
+				"status":  "error",
+				"message": err.Error(),
+			})
+		}
+
+		return vm.ToValue(map[string]interface{}{
+			"status":  "success",
+			"message": "Reply delivered successfully to YouTube live chat room.",
+		})
+	})
+
+	return hostObj
 }
 
 func (ss *ScriptsService) RegisterScriptAndBindToBus(topic models.EventKey, scriptID string, rawJsString string) error {
@@ -61,8 +188,7 @@ func (ss *ScriptsService) RegisterScriptAndBindToBus(topic models.EventKey, scri
 
 	program, err := goja.Compile(scriptID, rawJsString, true)
 	if err != nil {
-		log.Error("javascript compilation syntax validation error", "error", err.Error())
-		return fmt.Errorf("javascript compilation syntax validation error: %w", err)
+		return fmt.Errorf("javascript compilation error: %w", err)
 	}
 
 	if val, exists := ss.cachedScripts[scriptID]; exists {
@@ -70,120 +196,71 @@ func (ss *ScriptsService) RegisterScriptAndBindToBus(topic models.EventKey, scri
 		delete(ss.cachedScripts, scriptID)
 	}
 
-	unsub := application.Get().Event.On(string(topic), func(event *application.CustomEvent) {
-		vm := goja.New()
+	unsub := application.Get().Event.On(string(topic), func(customEvent *application.CustomEvent) {
+		ss.poolMu.RLock()
+		pool := ss.vmPool
+		ss.poolMu.RUnlock()
 
-		vm.Set("payload", event.Data)
-
-		hostObj := vm.NewObject()
-		vm.Set("host", hostObj)
-
-		hostObj.Set("log", func(level string, msg string) {
-			logLevel := utils.ParseLogLevel(level, slog.LevelInfo)
-
-			log.Log(context.Background(), logLevel, msg)
-		})
-
-		vm.Set("_invokeWasmAction", func(call goja.FunctionCall) goja.Value {
-			if len(call.Arguments) < 2 {
-				panic(vm.NewTypeError("InvokeAction requires pluginNamespace and actionName"))
-			}
-
-			pluginNs := call.Arguments[0].String()
-			actionName := call.Arguments[1].String()
-			wasmJsArgs := call.Arguments[2:]
-
-			// Convert JavaScript arguments into numeric register array slices
-			wasmArgs := make([]uint64, len(wasmJsArgs))
-			for i, arg := range wasmJsArgs {
-				wasmArgs[i] = uint64(arg.ToInteger())
-			}
-
-			res, err := ss.pluginService.InvokeAction(pluginNs, actionName, wasmArgs)
-			if err != nil {
-				log.Error("wasm execution fault context inside script execution", "plugin", pluginNs, "action", actionName, "error", err.Error())
-				panic(vm.NewTypeError("WebAssembly execution fault context: ", err.Error()))
-			}
-
-			if len(res) > 0 {
-				return vm.ToValue(res[0])
-			}
-			return goja.Undefined()
-		})
-
-		bootstrap := ss.generateJavascriptPluginObjectType()
-		if _, err := vm.RunString(bootstrap); err != nil {
-			log.Error("failed to run plugin proxy bootstrap", "error", err.Error())
+		if pool == nil {
 			return
 		}
 
-		if _, err = vm.RunProgram(program); err != nil {
-			log.Error("script execution crashed runtime context", "error", err.Error())
+		vm := pool.Get().(*goja.Runtime)
+
+		_ = vm.Set("event", customEvent)
+
+		userHost := vm.Get("host")
+		if userHost == nil || goja.IsUndefined(userHost) {
+			userHost = vm.NewObject()
+			_ = vm.Set("host", userHost)
 		}
+		_ = userHost.ToObject(vm).Set("log", func(level string, msg string) {
+			logLevel := utils.ParseLogLevel(level, slog.LevelInfo)
+			log.Log(context.Background(), logLevel, msg)
+		})
+
+		if _, err = vm.RunProgram(program); err != nil {
+			log.Error("script runtime execution crashed", "error", err.Error())
+		}
+
+		_ = vm.Set("event", goja.Undefined())
+		pool.Put(vm)
 	})
 
 	ss.cachedScripts[scriptID] = &ScriptCache{
-		Program:     *program,
+		Program:     program,
 		Unsubscribe: unsub,
 	}
 
-	log.Info("successfully registered and bound script to wails event bus")
 	return nil
-}
-
-func (ss *ScriptsService) generateJavascriptPluginObjectType() string {
-	var sb strings.Builder
-	sb.WriteString("const plugins = {};\n")
-
-	ss.pluginService.mu.RLock()
-	defer ss.pluginService.mu.RUnlock()
-
-	for ns, compiledModule := range ss.pluginService.compiledModules {
-		fmt.Fprintf(&sb, "plugins.%s = {\n", ns)
-
-		for _, exp := range compiledModule.ExportedFunctions() {
-			funcName := exp.Name()
-			if strings.HasPrefix(funcName, "_") || funcName == "main" || funcName == "memory" {
-				continue
-			}
-			fmt.Fprintf(&sb, "    %s: (...args) => _invokeWasmAction('%s', '%s', ...args),\n", funcName, ns, funcName)
-		}
-		sb.WriteString("};\n")
-	}
-
-	return sb.String()
 }
 
 func (ss *ScriptsService) GetDynamicPluginDefinitions() (string, error) {
 	var sb strings.Builder
 
-	sb.WriteString("/**\n * Automatically generated runtime plugin definitions.\n */\n\n")
 	sb.WriteString("declare namespace plugins {\n")
 
-	ss.pluginService.mu.RLock()
-	defer ss.pluginService.mu.RUnlock()
+	activePlugins := ss.pluginService.GetActivePlugins()
 
-	for ns, compiledModule := range ss.pluginService.compiledModules {
-		fmt.Fprintf(&sb, "    namespace %s {\n", ns)
+	for _, p := range activePlugins {
+		safeNamespaceName := strings.ReplaceAll(p.Name, "-", "_")
+		fmt.Fprintf(&sb, "    namespace %s {\n", safeNamespaceName)
 
-		for _, exp := range compiledModule.ExportedFunctions() {
-			funcName := exp.Name()
-			if strings.HasPrefix(funcName, "_") || funcName == "main" || funcName == "memory" {
-				continue
+		if p.TypeScriptDefs != "" {
+			cleanedDefs := strings.ReplaceAll(p.TypeScriptDefs, "export ", "")
+			cleanedDefs = strings.ReplaceAll(cleanedDefs, "declare ", "")
+
+			cleanedDefs = strings.ReplaceAll(cleanedDefs, "const host: HostContext;", "")
+			cleanedDefs = strings.ReplaceAll(cleanedDefs, "const host:HostContext;", "")
+
+			indentedDefs := strings.ReplaceAll(cleanedDefs, "\n", "\n        ")
+			sb.WriteString("        ")
+			sb.WriteString(strings.TrimSpace(indentedDefs))
+			sb.WriteString("\n")
+		} else {
+			for _, fn := range p.Functions {
+				fmt.Fprintf(&sb, "        function %s(...args: any[]): any;\n", fn)
 			}
-
-			paramCount := len(exp.ParamTypes())
-			paramsStr := make([]string, paramCount)
-			for i := range paramCount {
-				paramsStr[i] = fmt.Sprintf("arg%d: number", i)
-			}
-
-			returnType := "void"
-			if len(exp.ResultTypes()) > 0 {
-				returnType = "number"
-			}
-
-			fmt.Fprintf(&sb, "        function %s(%s): %s;\n", funcName, strings.Join(paramsStr, ", "), returnType)
 		}
 		sb.WriteString("    }\n\n")
 	}
@@ -196,40 +273,82 @@ func (ss *ScriptsService) GetMonacoEnvironment(topic string) (string, error) {
 	eventKey := models.EventKey(topic)
 	provider, exists := ss.typeRegistry[eventKey]
 
-	generatedEnvelopeFields := ""
+	typeName := "Generic"
+	innerFields := fmt.Sprintf("    event: \"%s\";\n    platform: string;\n    data: any;\n", topic)
+
 	if exists {
-		generatedEnvelopeFields = provider.GetEnvelopeSchema(topic)
-	} else {
-		generatedEnvelopeFields = fmt.Sprintf("    event: \"%s\";\n    platform: string;\n    data: any;\n", topic)
+		rawType := fmt.Sprintf("%T", provider)
+		if idx := strings.LastIndex(rawType, "."); idx != -1 {
+			typeName = rawType[idx+1:]
+		} else {
+			typeName = rawType
+		}
+
+		typeName = strings.ReplaceAll(typeName, "StreamEventEnvelope", "")
+		typeName = strings.ReplaceAll(typeName, "[", "")
+		typeName = strings.ReplaceAll(typeName, "]", "")
+
+		innerFields = utils.GenerateTSFields(provider, string(eventKey))
 	}
 
-	wasmPluginDeclarations, _ := ss.GetDynamicPluginDefinitions()
+	jsPluginDeclarations, _ := ss.GetDynamicPluginDefinitions()
 
 	fullEnvironment := fmt.Sprintf(`
 %s
 
-interface StreamEventEnvelope {
+interface %s {
 %s}
 
-/**
- * The event envelope injected matching the active event hook.
- */
-declare const payload: StreamEventEnvelope;
+interface WailsEvent {
+    id: string;
+    name: string;
+    sender: string;
+    data: %s;
+}
 
-/**
- * Safe Go-host bindings exposed to this script environment.
- */
+declare const event: WailsEvent;
+
+interface YoutubeReplyResponse {
+    status: "success" | "error";
+    message: string;
+}
+
+interface YoutubeHostNamespace {
+    replyToMessage(liveChatID: string, authorID: string, text: string): YoutubeReplyResponse;
+}
+
 declare namespace host {
     function log(level: "debug" | "info" | "warn" | "error" | string, msg: string): void;
+		const youtube: YoutubeHostNamespace;
 }
-`, wasmPluginDeclarations, generatedEnvelopeFields)
+`, jsPluginDeclarations, typeName, innerFields, typeName)
 
 	return fullEnvironment, nil
 }
 
 func (ss *ScriptsService) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
-	ss.typeRegistry[models.EventKeyStreamChatMessage] = TypedSchema[models.StreamChatMessageEvent]{}
-	ss.typeRegistry[models.EventKeyYoutubeSuperchat] = TypedSchema[models.StreamSuperchatMessageEvent]{}
-	ss.typeRegistry[models.EventKeyManualInvoke] = EmptyStruct{}
+	ss.typeRegistry[models.EventKeyStreamChatMessage] = models.StreamEventEnvelope[models.StreamChatMessageEvent]{}
+	ss.typeRegistry[models.EventKeyYoutubeSuperchat] = models.StreamEventEnvelope[models.StreamSuperchatMessageEvent]{}
+	ss.typeRegistry[models.EventKeyManualInvoke] = models.StreamEventEnvelope[EmptyStruct]{}
+
+	_ = ss.InitializeVMPool()
+
+	ss.pluginService.StartDevPluginWatcher(func() {
+		if err := ss.InitializeVMPool(); err != nil {
+			slog.Error("Rebuilding pool failed during hot reload", "error", err)
+		} else {
+			slog.Info("Script engine pool completely refreshed with new changes")
+		}
+	})
+
+	// WHAT DO YOU MEAN JSON.stringify DOESN'T CAPTURE FUNCTIONS?????????????
+	// ss.RegisterScriptAndBindToBus(
+	// 	models.EventKeyManualInvoke,
+	// 	"test_script",
+	// 	`host.log("info", JSON.stringify({
+	//       string_utils: Object.keys(plugins.string_utils)
+	//   }))`,
+	// )
+	// application.Get().Event.Emit(string(models.EventKeyManualInvoke))
 	return nil
 }

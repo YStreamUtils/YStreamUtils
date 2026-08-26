@@ -7,16 +7,20 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as api$0 from "../../../../tetratelabs/wazero/api/models.js";
+import * as $models from "./models.js";
 
-export function InvokeAction($namespace: string, action: string, args: number[] | null): $CancellablePromise<number[] | null> {
-    return $Call.ByID(230766986, $namespace, action, args);
+export function GetActivePlugins(): $CancellablePromise<$models.ActivePlugin[] | null> {
+    return $Call.ByID(718559694);
 }
 
-export function LoadPlugins(): $CancellablePromise<void> {
-    return $Call.ByID(3134491972);
+export function InstallPluginFromManifestTOML(tomlBytes: string | null): $CancellablePromise<void> {
+    return $Call.ByID(3350607661, tomlBytes);
 }
 
-export function LogToHost(mod: api$0.Module, level: number, offset: number, byteCount: number): $CancellablePromise<void> {
-    return $Call.ByID(3056309361, mod, level, offset, byteCount);
+export function ReloadLocalPlugins(): $CancellablePromise<void> {
+    return $Call.ByID(1929561816);
+}
+
+export function StartDevPluginWatcher(onReload: any): $CancellablePromise<void> {
+    return $Call.ByID(896991664, onReload);
 }

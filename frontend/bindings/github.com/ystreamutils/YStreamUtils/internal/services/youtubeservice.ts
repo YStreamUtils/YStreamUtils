@@ -32,3 +32,7 @@ export function GetLiveChatID(videoID: string): $CancellablePromise<string> {
 export function GetProfile(): $CancellablePromise<models$0.UserProfile | null> {
     return $Call.ByID(3781084915);
 }
+
+export function SendChannelReply(liveChatID: string, authorID: string, replyText: string): $CancellablePromise<void> {
+    return $Call.ByID(3095995661, liveChatID, authorID, replyText);
+}

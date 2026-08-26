@@ -6,9 +6,19 @@ import (
 	"strings"
 )
 
-func GenerateTSFields(s interface{}, overrideEventKey string) string {
-	t := reflect.TypeOf(s)
-	if t.Kind() == reflect.Ptr {
+func GenerateTSFields(s any, overrideEventKey string) string {
+	// If the user mistakenly passed a reflect.Type, unpack it.
+	var t reflect.Type
+	if rt, ok := s.(reflect.Type); ok {
+		t = rt
+	} else {
+		t = reflect.TypeOf(s)
+	}
+
+	if t == nil {
+		return ""
+	}
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {
@@ -20,13 +30,13 @@ func GenerateTSFields(s interface{}, overrideEventKey string) string {
 		field := t.Field(i)
 
 		if field.Anonymous {
-			// Forward the override key recursively
-			embeddedFields := GenerateTSFields(reflect.New(field.Type).Elem().Interface(), overrideEventKey)
+			embeddedFields := GenerateTSFields(field.Type, overrideEventKey)
 			sb.WriteString(embeddedFields)
+			continue
 		}
 
 		jsonTag := field.Tag.Get("json")
-		if jsonTag == "-" || field.Anonymous {
+		if jsonTag == "-" {
 			continue
 		}
 
@@ -37,22 +47,20 @@ func GenerateTSFields(s interface{}, overrideEventKey string) string {
 		}
 
 		var tsType string
-		// FIXED: Explicitly force the string literal type using our direct string token parameter
 		if field.Name == "Event" && overrideEventKey != "" {
 			tsType = fmt.Sprintf(`"%s"`, overrideEventKey)
 		} else if field.Name == "Platform" {
 			tsType = `"twitch" | "youtube" | "kick" | string`
 		} else {
-			// Pass a blank token down to nested sub-structures so they don't overwrite child strings
 			tsType = resolveTSType(field.Type)
 		}
-		sb.WriteString(fmt.Sprintf("    %s: %s;\n", fieldName, tsType))
+		fmt.Fprintf(&sb, "    %s: %s;\n", fieldName, tsType)
 	}
 	return sb.String()
 }
 
 func resolveTSType(t reflect.Type) string {
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	switch t.Kind() {
@@ -70,8 +78,7 @@ func resolveTSType(t reflect.Type) string {
 		if t.String() == "time.Time" {
 			return "string"
 		}
-		// Pass an empty override parameter to inner structs
-		return "{\n" + GenerateTSFields(reflect.New(t).Elem().Interface(), "") + "    }"
+		return "{\n" + GenerateTSFields(t, "") + "    }"
 	default:
 		return "any"
 	}

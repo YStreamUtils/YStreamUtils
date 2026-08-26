@@ -3,9 +3,13 @@
 
 export {
     EventKey,
+    Permission,
     Platform
 } from "./models.js";
 
 export type {
+    DocumentationConfig,
+    PluginManifest,
+    SourceConfig,
     UserProfile
 } from "./models.js";

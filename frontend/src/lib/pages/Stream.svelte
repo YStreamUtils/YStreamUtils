@@ -17,8 +17,9 @@
   let scrollContainer: HTMLDivElement;
 
   onMount(() => {
-    Events.On("stream:chat_msg", async (payload: any) => {
-      messages = [...messages, payload.data.message];
+    Events.On("stream:chat_message", async (payload: any) => {
+      console.log(payload.data);
+      messages = [...messages, payload.data.data];
       await tick();
       if (scrollContainer) {
         scrollContainer.scrollTo({
