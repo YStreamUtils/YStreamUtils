@@ -1,25 +1,19 @@
 <script lang="ts">
   import { Events } from "@wailsio/runtime";
   import { onMount, tick } from "svelte";
-  import { profiles } from "../auth.svelte";
+  import { platforms, profiles } from "../auth.svelte";
   import {
     GetActiveBroadcastVideoIDs,
     FetchConcurrentViewers,
   } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/services/metricsservice";
   import { StartChatStream } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/services/chatservice";
-
-  let activeStreamVideoIds = $state<string[]>([]);
-  let messages = $state<any[]>([]);
-  let concurrentViewersMap = $state<Record<string, number>>({});
-  let isAccountLinked = $state(false);
-  let isLoadingStreams = $state(true);
+    import { streamState } from "../streamState.svelte";
+    import { EventKey, Platform } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/models";
 
   let scrollContainer: HTMLDivElement;
 
   onMount(() => {
-    Events.On("stream:chat_message", async (payload: any) => {
-      console.log(payload.data);
-      messages = [...messages, payload.data.data];
+    Events.On(EventKey.EventKeyStreamChatMessage, async (payload) => {
       await tick();
       if (scrollContainer) {
         scrollContainer.scrollTo({
@@ -28,59 +22,7 @@
         });
       }
     });
-
-    let interval: any;
-
-    async function initializeDashboard() {
-      try {
-        console.log(profiles["youtube"]);
-        if (profiles["youtube"]) {
-          isAccountLinked = true;
-
-          const liveIds = await GetActiveBroadcastVideoIDs("youtube", false);
-          console.log(liveIds);
-          if (liveIds) {
-            activeStreamVideoIds = liveIds;
-            console.log(liveIds);
-          }
-
-          await refreshAllMetrics();
-          liveIds?.forEach((s) => {
-            StartChatStream("youtube", s);
-          });
-
-          interval = setInterval(refreshAllMetrics, 30000);
-        } else {
-          isAccountLinked = false;
-          isLoadingStreams = false;
-        }
-      } catch (err) {
-        console.error("Failed to complete launch stream scan sequence:", err);
-        isLoadingStreams = false;
-      }
-    }
-
-    initializeDashboard();
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
   });
-
-  async function refreshAllMetrics() {
-    for (const videoId of activeStreamVideoIds) {
-      try {
-        const count = await FetchConcurrentViewers("youtube", videoId);
-        concurrentViewersMap[videoId] = count;
-      } catch (err) {
-        console.error(
-          `Failed to refresh viewer telemetry metrics for ${videoId}:`,
-          err,
-        );
-      }
-    }
-    isLoadingStreams = false;
-  }
 </script>
 
 <div class="stream-grid">
@@ -89,7 +31,7 @@
     <div class="chat-header">Chat</div>
 
     <div class="chat-viewport" bind:this={scrollContainer}>
-      {#each messages as msg}
+      {#each streamState.messages as msg}
         <div class="chat-row">
           <span class="chat-author">{msg.author}:</span>
           <span class="chat-text">{msg.message}</span>
@@ -100,30 +42,33 @@
 
   <!-- Right Column: Container displaying an embed player for each active stream item -->
   <div class="grid-right player-column">
-    {#each activeStreamVideoIds as videoId}
+    {#each Object.entries(streamState.activeStreamVideoIds) as [videoId, platform]}
       <div class="player-card">
-        <iframe
-          title="Youtube Stream - {videoId}"
-          src="https://youtube.com/embed/{videoId}?autoplay=1&mute=1&controls=0"
-          width="100%"
-          height="450px"
-          frameborder="0"
-          allow="autoplay; encrypted-media; picture-in-picture"
-          referrerpolicy="strict-origin-when-cross-origin"
-          allowfullscreen
-          class="player-frame"
-        >
-        </iframe>
+        {@render youtubeIframe(videoId)}
+        
         <div class="player-footer">
           Live Stream ID: {videoId}
           <span class="footer-viewers">
-            👁️ {concurrentViewersMap[videoId] ?? 0} viewers
+            👁️ {streamState.concurrentViewersMap[videoId] ?? 0} viewers
           </span>
         </div>
       </div>
     {/each}
   </div>
 </div>
+
+{#snippet youtubeIframe(videoId: string)}
+<iframe
+  title="Youtube Stream - {videoId}"
+  src="https://youtube.com/embed/{videoId}?autoplay=1&mute=1&controls=0"
+  width="100%"
+  height="450px"
+  frameborder="0"
+  allow="autoplay; encrypted-media; picture-in-picture"
+  referrerpolicy="strict-origin-when-cross-origin"
+  allowfullscreen
+  class="player-frame"></iframe>
+{/snippet}
 
 <style>
   .stream-grid {

@@ -9,6 +9,7 @@
   import "@fontsource/jetbrains-mono";
   import "./lib/style.css";
   import { loadAllProfiles } from "./lib/auth.svelte";
+    import { InitStreamState } from "./lib/streamState.svelte";
 
   let ActiveScreen = $derived(pages[router.current]);
   $effect(() => {
@@ -22,7 +23,7 @@
   onMount(async () => {
     await initSettings();
     await loadAllProfiles();
-    
+    await InitStreamState();
   });
 
   $effect(() => {

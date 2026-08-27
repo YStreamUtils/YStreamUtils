@@ -18,16 +18,15 @@ import (
 
 type EmptyStruct struct{}
 
-type PreCompiledPlugin struct {
+type CompiledPlugin struct {
 	Name        string
 	Program     *goja.Program
 	Permissions []types.Permission
 }
 
-type ScriptCache struct {
-	ScriptSource string
-	Program      *goja.Program
-	Unsubscribe  func()
+type CompiledScript struct {
+	Program     *goja.Program
+	Unsubscribe func()
 }
 
 type ScriptsService struct {
@@ -39,8 +38,8 @@ type ScriptsService struct {
 
 	mu            sync.RWMutex
 	typeRegistry  map[models.EventKey]any
-	cachedScripts map[string]*ScriptCache
-	cachedPlugins map[string]PreCompiledPlugin
+	cachedScripts map[string]*CompiledScript
+	cachedPlugins map[string]CompiledPlugin
 }
 
 func NewScriptsService(ctx context.Context, plugins *PluginService, youtubeService *YouTubeService, vault ports.SecretVault) *ScriptsService {
@@ -49,7 +48,7 @@ func NewScriptsService(ctx context.Context, plugins *PluginService, youtubeServi
 		ctx:            ctx,
 		pluginService:  plugins,
 		youtubeService: youtubeService,
-		cachedScripts:  make(map[string]*ScriptCache),
+		cachedScripts:  make(map[string]*CompiledScript),
 		typeRegistry:   make(map[models.EventKey]any),
 	}
 }
@@ -59,7 +58,7 @@ func (ss *ScriptsService) InitializeVMPool() error {
 	defer ss.mu.Unlock()
 
 	activePlugins := ss.pluginService.GetActivePlugins()
-	ss.cachedPlugins = make(map[string]PreCompiledPlugin, len(activePlugins))
+	ss.cachedPlugins = make(map[string]CompiledPlugin, len(activePlugins))
 
 	for _, p := range activePlugins {
 		prg, err := goja.Compile(p.Name, p.JavaScriptCode, true)
@@ -73,7 +72,7 @@ func (ss *ScriptsService) InitializeVMPool() error {
 			perms = append(perms, perm)
 		}
 
-		ss.cachedPlugins[p.Name] = PreCompiledPlugin{
+		ss.cachedPlugins[p.Name] = CompiledPlugin{
 			Name:        p.Name,
 			Program:     prg,
 			Permissions: perms,
@@ -236,7 +235,7 @@ func (ss *ScriptsService) RegisterScriptAndBindToBus(topic models.EventKey, scri
 		}
 	})
 
-	ss.cachedScripts[scriptID] = &ScriptCache{
+	ss.cachedScripts[scriptID] = &CompiledScript{
 		Program:     program,
 		Unsubscribe: unsub,
 	}
@@ -278,9 +277,8 @@ func (ss *ScriptsService) GetDynamicPluginDefinitions() (string, error) {
 	return sb.String(), nil
 }
 
-func (ss *ScriptsService) GetMonacoEnvironment(topic string) (string, error) {
-	eventKey := models.EventKey(topic)
-	provider, exists := ss.typeRegistry[eventKey]
+func (ss *ScriptsService) GetMonacoEnvironment(topic models.EventKey) (string, error) {
+	provider, exists := ss.typeRegistry[topic]
 
 	typeName := "Generic"
 	innerFields := fmt.Sprintf("    event: \"%s\";\n    platform: string;\n    data: any;\n", topic)
@@ -297,7 +295,7 @@ func (ss *ScriptsService) GetMonacoEnvironment(topic string) (string, error) {
 		typeName = strings.ReplaceAll(typeName, "[", "")
 		typeName = strings.ReplaceAll(typeName, "]", "")
 
-		innerFields = utils.GenerateTSFields(provider, string(eventKey))
+		innerFields = utils.GenerateTSFields(provider, string(topic))
 	}
 
 	jsPluginDeclarations, _ := ss.GetDynamicPluginDefinitions()
@@ -323,7 +321,7 @@ interface YoutubeHostNamespace {
 
 declare namespace host {
     function log(level: "debug" | "info" | "warn" | "error" | string, msg: string): void;
-		const youtube: YoutubeHostNamespace;
+	const youtube: YoutubeHostNamespace;
 }
 `, jsPluginDeclarations, typeName, innerFields, typeName)
 
