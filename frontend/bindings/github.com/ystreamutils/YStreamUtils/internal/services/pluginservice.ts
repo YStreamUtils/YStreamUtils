@@ -21,7 +21,7 @@ export function FetchAllRegistryPlugins(): $CancellablePromise<types$0.PluginMan
     return $Call.ByID(2777702260);
 }
 
-export function GetActivePlugins(): $CancellablePromise<$models.ActivePlugin[] | null> {
+export function GetActivePlugins(): $CancellablePromise<{ [_ in string]?: $models.ActivePlugin } | null> {
     return $Call.ByID(718559694);
 }
 

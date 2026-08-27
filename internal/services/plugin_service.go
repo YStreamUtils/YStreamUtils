@@ -18,6 +18,7 @@ import (
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/fsnotify/fsnotify"
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/ystreamutils/YStreamUtils/internal/utils"
 )
 
 type ActivePlugin struct {
@@ -34,7 +35,7 @@ type PluginService struct {
 	settings      *SettingsService
 	mu            sync.RWMutex
 	pluginDir     string
-	activePlugins []ActivePlugin
+	activePlugins map[string]ActivePlugin
 }
 
 func NewPluginService(ctx context.Context, pluginDir string, settings *SettingsService) *PluginService {
@@ -43,7 +44,7 @@ func NewPluginService(ctx context.Context, pluginDir string, settings *SettingsS
 		ctx:           ctx,
 		settings:      settings,
 		pluginDir:     filepath.Join(pluginDir, "plugins"),
-		activePlugins: make([]ActivePlugin, 0),
+		activePlugins: map[string]ActivePlugin{},
 	}
 }
 
@@ -199,7 +200,7 @@ func (ps *PluginService) DownloadAndInstallPlugin(manifest types.PluginManifest)
 	return ps.ReloadLocalPlugins()
 }
 
-func (ps *PluginService) GetActivePlugins() []ActivePlugin {
+func (ps *PluginService) GetActivePlugins() map[string]ActivePlugin {
 	ps.mu.RLock()
 	defer ps.mu.RUnlock()
 	return ps.activePlugins
@@ -218,7 +219,7 @@ func (ps *PluginService) ReloadLocalPlugins() error {
 		return fmt.Errorf("failed reading dynamic local disk configurations: %w", err)
 	}
 
-	newActivePlugins := make([]ActivePlugin, 0)
+	newActivePlugins := map[string]ActivePlugin{}
 
 	for _, entry := range entries {
 		if !entry.IsDir() {
@@ -242,19 +243,30 @@ func (ps *PluginService) ReloadLocalPlugins() error {
 		ps.Logger.Info(fmt.Sprintf("Found plugin %s at %s", manifest.Name, manifestPath))
 
 		fullEntryPointPath := filepath.Join(folderPath, manifest.EntryPoint)
-
 		buildResult := api.Build(api.BuildOptions{
-			EntryPoints: []string{fullEntryPointPath},
-			Bundle:      true,
-			Write:       false,
-			Target:      api.ES5,
-			Format:      api.FormatCommonJS,
-			TreeShaking: api.TreeShakingFalse,
-			LogLevel:    api.LogLevelSilent,
+			EntryPoints:       []string{fullEntryPointPath},
+			Bundle:            true,
+			Write:             false,
+			Target:            api.ES2020,
+			Format:            api.FormatCommonJS,
+			Platform:          api.PlatformNeutral,
+			External:          []string{"host"},
+			TreeShaking:       api.TreeShakingTrue,
+			MinifyIdentifiers: false,
+			MinifySyntax:      true,
+			MinifyWhitespace:  false,
+			LogLevel:          api.LogLevelSilent,
 		})
 
-		if len(buildResult.Errors) > 0 || len(buildResult.OutputFiles) == 0 {
+		if len(buildResult.Errors) > 0 {
+			for _, buildError := range buildResult.Errors {
+				ps.Logger.Error("error compiling plugin", "error", buildError)
+			}
 			continue
+		}
+
+		if files := len(buildResult.OutputFiles); files > 1 {
+			ps.Logger.Error("too many files generated", "amount", files)
 		}
 
 		bundledJSCode := string(buildResult.OutputFiles[0].Contents)
@@ -267,13 +279,13 @@ func (ps *PluginService) ReloadLocalPlugins() error {
 			}
 		}
 
-		newActivePlugins = append(newActivePlugins, ActivePlugin{
+		newActivePlugins[utils.GetSafePluginNamespace(manifest.Name)] = ActivePlugin{
 			Name:           manifest.Name,
 			JavaScriptCode: bundledJSCode,
 			TypeScriptDefs: typeDefs,
 			Functions:      []string{},
 			Manifest:       manifest,
-		})
+		}
 	}
 
 	ps.activePlugins = newActivePlugins

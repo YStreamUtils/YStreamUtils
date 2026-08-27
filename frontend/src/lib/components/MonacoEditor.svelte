@@ -30,14 +30,12 @@
     if (!monacoInstance) return;
     try {
       const tsDefinitions = await GetMonacoEnvironment(currentKey);
-      console.log(tsDefinitions)
+      console.log(tsDefinitions);
 
       if (extraLibsDisposable) {
         extraLibsDisposable.dispose();
       }
 
-      // Stripped the 'export {}' block which isolates typescript definitions,
-      // and placed them cleanly inside the active compiler pool scope.
       const typeContent = `
         ${tsDefinitions}
         
@@ -47,7 +45,6 @@
         }
       `;
 
-      // Expose to window for quick inspection via browser dev tools console
       (window as any).__DEBUG_MONACO_ENVIRONMENT__ = typeContent;
 
       const tsDefaults = monacoInstance.typescript.typescriptDefaults;
@@ -73,7 +70,7 @@
         module: monacoInstance.typescript.ModuleKind.None,
         strict: true,
         allowNonTsExtensions: true,
-        noLib: false, // Ensures base types like string/number don't drop out of tracking
+        noLib: false,
       });
 
       await updateTypings(eventKey);
@@ -90,7 +87,7 @@
 
       editorInstance = monacoInstance.editor.create(container, {
         model: modelInstance,
-        automaticLayout: true,
+        automaticLayout: false,
         theme: "one-dark-pro",
         minimap: { enabled: false },
       });
@@ -139,7 +136,15 @@
       container.innerHTML = "";
     }
   });
+
+  function handleResize(
+    event: UIEvent & { currentTarget: EventTarget & Window },
+  ) {
+    editorInstance?.layout();
+  }
 </script>
+
+<svelte:window onresize={handleResize} />
 
 <div class="editor-outer-wrapper">
   <div class="editor-viewport" bind:this={container}></div>
@@ -147,7 +152,10 @@
 
 <style>
   .editor-outer-wrapper {
+    flex-grow: 1;
     width: 100%;
+    min-width: 0;
+    min-height: 0;
     padding-top: 1rem;
   }
 
@@ -155,8 +163,7 @@
     display: flex;
     flex-wrap: wrap;
     width: 100%;
-    height: 30rem;
-    min-height: 12rem;
+    height: calc(100% - 1px);
     border-radius: 4px;
   }
 </style>

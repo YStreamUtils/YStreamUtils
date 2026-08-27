@@ -36,23 +36,31 @@
 </script>
 
 <Card style="width: 100%; height: 100%;padding: var(--space-4);">
-  <div style="display: flex; flex-wrap: wrap;">
-    <label for="event-select" style="margin-right: 10px; font-weight: bold;">
-      Select Event Stream Target:
-    </label>
-    <select
-      id="event-select"
-      bind:value={currentKey}
-      style="padding: 6px; color: #fff; background: #222; border: 1px solid #444; border-radius: 4px;"
-    >
-      {#each filteredEvents as [eventKey, displayName], index (eventKey)}
-        <option value={EventKey[eventKey]}>
-          {displayName}
-        </option>
-      {/each}
-    </select>
-    <Button color="success" icon={Save} onclick={handleSave}>Save</Button>
-    <Button color="warning" icon={Check} onclick={testButton}>Test</Button>
+  <div
+    style="display: grid; grid-template-rows: [header] auto [content] 1fr; height: 100%"
+  >
+    <div>
+      <label
+        for="event-select"
+        style=" ;margin-right: 10px; font-weight: bold;"
+      >
+        Select Event Stream Target:
+      </label>
+      <select
+        id="event-select"
+        bind:value={currentKey}
+        style="padding: 6px; color: #fff; background: #222; border: 1px solid #444; border-radius: 4px;"
+      >
+        {#each filteredEvents as [eventKey, displayName], index (eventKey)}
+          <option value={EventKey[eventKey]}>
+            {displayName}
+          </option>
+        {/each}
+      </select>
+      <Button color="success" icon={Save} onclick={handleSave}>Save</Button>
+      <Button color="warning" icon={Check} onclick={testButton}>Test</Button>
+    </div>
+
     <MonacoEditor bind:value={userScript} eventKey={currentKey} />
   </div>
 </Card>

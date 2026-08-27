@@ -4,14 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"slices"
+	"regexp"
 	"strings"
 	"sync"
 
 	"github.com/YStreamUtils/YStreamUtils-Plugin-Registry/ci/types"
 	"github.com/dop251/goja"
 	"github.com/wailsapp/wails/v3/pkg/application"
-	"github.com/ystreamutils/YStreamUtils/internal/bridges"
 	"github.com/ystreamutils/YStreamUtils/internal/models"
 	"github.com/ystreamutils/YStreamUtils/internal/ports"
 	"github.com/ystreamutils/YStreamUtils/internal/utils"
@@ -19,9 +18,16 @@ import (
 
 type EmptyStruct struct{}
 
-type ScriptCache struct {
+type PreCompiledPlugin struct {
+	Name        string
 	Program     *goja.Program
-	Unsubscribe func()
+	Permissions []types.Permission
+}
+
+type ScriptCache struct {
+	ScriptSource string
+	Program      *goja.Program
+	Unsubscribe  func()
 }
 
 type ScriptsService struct {
@@ -30,12 +36,11 @@ type ScriptsService struct {
 	pluginService  *PluginService
 	youtubeService *YouTubeService
 	vault          ports.SecretVault
-	mu             sync.RWMutex
-	cachedScripts  map[string]*ScriptCache
-	typeRegistry   map[models.EventKey]any
-	poolMu         sync.RWMutex
-	vmPool         *sync.Pool
-	factoryBundle  *goja.Program
+
+	mu            sync.RWMutex
+	typeRegistry  map[models.EventKey]any
+	cachedScripts map[string]*ScriptCache
+	cachedPlugins map[string]PreCompiledPlugin
 }
 
 func NewScriptsService(ctx context.Context, plugins *PluginService, youtubeService *YouTubeService, vault ports.SecretVault) *ScriptsService {
@@ -50,78 +55,29 @@ func NewScriptsService(ctx context.Context, plugins *PluginService, youtubeServi
 }
 
 func (ss *ScriptsService) InitializeVMPool() error {
-	ss.poolMu.Lock()
-	defer ss.poolMu.Unlock()
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
 
 	activePlugins := ss.pluginService.GetActivePlugins()
+	ss.cachedPlugins = make(map[string]PreCompiledPlugin, len(activePlugins))
 
-	ss.vmPool = &sync.Pool{
-		New: func() any {
-			vm := goja.New()
-			vm.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
+	for _, p := range activePlugins {
+		prg, err := goja.Compile(p.Name, p.JavaScriptCode, true)
+		if err != nil {
+			ss.Logger.Error("plugin failed to compile", "plugin", p.Name)
+			continue
+		}
 
-			pluginsObj := vm.NewObject()
-			_ = vm.Set("plugins", pluginsObj)
+		perms := make([]types.Permission, 0, len(p.Manifest.Permissions))
+		for _, perm := range p.Manifest.Permissions {
+			perms = append(perms, perm)
+		}
 
-			for _, p := range activePlugins {
-				scopedHost := ss.CreateScopedHostObject(vm, p.Name, p.Manifest.Permissions)
-
-				_ = vm.Set("host", scopedHost)
-
-				moduleObj := vm.NewObject()
-				moduleExports := vm.NewObject()
-				_ = moduleObj.Set("exports", moduleExports)
-
-				_ = vm.Set("module", moduleObj)
-				_ = vm.Set("exports", moduleExports)
-
-				_, err := vm.RunString(p.JavaScriptCode)
-				if err != nil {
-					continue
-				}
-
-				finalExports := moduleObj.Get("exports").ToObject(vm)
-				pluginInstance := vm.NewObject()
-
-				for _, key := range finalExports.Keys() {
-					if key == "__esModule" || key == "default" || key == "host" {
-						continue
-					}
-
-					rawFunc, ok := goja.AssertFunction(finalExports.Get(key))
-					if !ok {
-						continue
-					}
-
-					boundMethod := vm.ToValue(func(call goja.FunctionCall) goja.Value {
-						_ = vm.Set("host", scopedHost)
-
-						res, err := rawFunc(goja.Undefined(), call.Arguments...)
-						if err != nil {
-							panic(err)
-						}
-						return res
-					})
-
-					_ = pluginInstance.Set(key, boundMethod)
-				}
-
-				freezeFunc, _ := goja.AssertFunction(vm.Get("Object").ToObject(vm).Get("freeze"))
-				_, _ = freezeFunc(goja.Undefined(), pluginInstance)
-
-				safeNamespaceName := strings.ReplaceAll(p.Name, "-", "_")
-				_ = pluginsObj.Set(safeNamespaceName, pluginInstance)
-			}
-
-			_ = vm.Set("module", goja.Undefined())
-			_ = vm.Set("exports", goja.Undefined())
-			_ = vm.Set("host", goja.Undefined())
-
-			freezeFunc, _ := goja.AssertFunction(vm.Get("Object").ToObject(vm).Get("freeze"))
-			_, _ = freezeFunc(goja.Undefined(), pluginsObj)
-
-			return vm
-		},
+		ss.cachedPlugins[p.Name] = PreCompiledPlugin{
+			Name:        p.Name,
+			Program:     prg,
+			Permissions: perms,
+		}
 	}
 
 	return nil
@@ -130,62 +86,44 @@ func (ss *ScriptsService) InitializeVMPool() error {
 func (ss *ScriptsService) CreateScopedHostObject(vm *goja.Runtime, pluginName string, permissions []types.Permission) *goja.Object {
 	hostObj := vm.NewObject()
 
-	authBridge := bridges.NewAuthBridge(ss.vault)
-	fetchBridge := bridges.NewFetchBridge()
+	permMap := make(map[types.Permission]bool, len(permissions))
+	for _, perm := range permissions {
+		permMap[perm] = true
+	}
 
-	authObj := vm.NewObject()
-	_ = hostObj.Set("auth", authObj)
-	_ = authObj.Set("getAccessToken", func(call goja.FunctionCall) goja.Value {
-		return authBridge.GetAccessToken(call, vm, pluginName, permissions)
-	})
-
-	networkObj := vm.NewObject()
-	_ = hostObj.Set("network", networkObj)
-	_ = networkObj.Set("fetch", func(call goja.FunctionCall) goja.Value {
-		hasPerm := slices.Contains(permissions, models.PermissionNetwork)
-
-		if !hasPerm {
-			panic(vm.NewTypeError(fmt.Sprintf("Security Error: Plugin '%s' lacks 'network' permission.", pluginName)))
-		}
-
-		return fetchBridge.Fetch(call, vm)
-	})
-
-	youtubeObj := vm.NewObject()
-	_ = hostObj.Set("youtube", youtubeObj)
-
-	_ = youtubeObj.Set("replyToMessage", func(call goja.FunctionCall) goja.Value {
-		hasPerm := slices.Contains(permissions, models.PermissionYoutube)
-		if !hasPerm {
-			panic(vm.NewTypeError(fmt.Sprintf("Security Error: Plugin '%s' lacks 'youtube' permissions.", pluginName)))
-		}
-
-		liveChatID := call.Argument(0).String()
-		authorID := call.Argument(1).String()
-		replyText := call.Argument(2).String()
-
-		err := ss.youtubeService.SendChannelReply(liveChatID, authorID, replyText)
-		if err != nil {
-			return vm.ToValue(map[string]interface{}{
-				"status":  "error",
-				"message": err.Error(),
-			})
-		}
-
-		return vm.ToValue(map[string]interface{}{
-			"status":  "success",
-			"message": "Reply delivered successfully to YouTube live chat room.",
+	if permMap[models.PermissionNetwork] {
+		networkObj := vm.NewObject()
+		_ = networkObj.Set("fetch", func(url string, options goja.Value) goja.Value {
+			ss.Logger.Info("Plugin triggering outbound HTTP fetch", "plugin", pluginName, "url", url)
+			return ss.responseObjectFactory(vm, url)
 		})
+		_ = hostObj.Set("network", networkObj)
+	}
+
+	_ = hostObj.Set("log", func(level string, msg string) {
+		logLevel := utils.ParseLogLevel(level, slog.LevelInfo)
+		ss.Logger.Log(context.Background(), logLevel, msg, "plugin", pluginName)
 	})
 
 	return hostObj
+}
+
+func (ss *ScriptsService) responseObjectFactory(targetVM *goja.Runtime, url string) goja.Value {
+	responseMap := map[string]any{
+		"status": 200,
+		"url":    url,
+		"json": func() map[string]any {
+			return map[string]any{"success": true}
+		},
+	}
+
+	return targetVM.ToValue(responseMap)
 }
 
 func (ss *ScriptsService) RegisterScriptAndBindToBus(topic models.EventKey, scriptID string, rawJsString string) error {
 	log := ss.Logger.With("scriptId", scriptID, "topic", topic)
 
 	ss.mu.Lock()
-	defer ss.mu.Unlock()
 
 	program, err := goja.Compile(scriptID, rawJsString, true)
 	if err != nil {
@@ -196,36 +134,106 @@ func (ss *ScriptsService) RegisterScriptAndBindToBus(topic models.EventKey, scri
 		val.Unsubscribe()
 		delete(ss.cachedScripts, scriptID)
 	}
+	ss.mu.Unlock()
+
+	re := regexp.MustCompile(`plugins\.(\w+)`)
+	matches := re.FindAllStringSubmatch(rawJsString, -1)
+
+	detectedPlugins := make([]string, 0, len(matches))
+	seen := make(map[string]struct{})
+
+	for _, match := range matches {
+		if len(match) > 1 {
+			pluginName := match[1]
+			if _, exists := seen[pluginName]; !exists {
+				seen[pluginName] = struct{}{}
+				detectedPlugins = append(detectedPlugins, pluginName)
+			}
+		}
+	}
 
 	unsub := application.Get().Event.On(string(topic), func(customEvent *application.CustomEvent) {
-		ss.poolMu.RLock()
-		pool := ss.vmPool
-		ss.poolMu.RUnlock()
+		vm := goja.New()
+		vm.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
 
-		if pool == nil {
-			return
+		pluginsObj := vm.NewObject()
+		_ = vm.Set("plugins", pluginsObj)
+
+		for _, name := range detectedPlugins {
+			ss.mu.RLock()
+			plugin, exists := ss.cachedPlugins[name]
+			ss.mu.RUnlock()
+			if !exists {
+				log.Error("tried to use a non-existant plugin", "plugin", name)
+			}
+
+			moduleObj := vm.NewObject()
+			moduleExports := vm.NewObject()
+			_ = moduleObj.Set("exports", moduleExports)
+			_ = vm.Set("module", moduleObj)
+			_ = vm.Set("exports", moduleExports)
+
+			scopedHost := ss.CreateScopedHostObject(vm, plugin.Name, plugin.Permissions)
+			_ = vm.Set("host", scopedHost)
+
+			_, evalErr := vm.RunProgram(plugin.Program)
+			if evalErr != nil {
+				continue
+			}
+
+			rawExports := moduleObj.Get("exports").ToObject(vm)
+			boundPluginInstance := vm.NewObject()
+
+			for _, key := range rawExports.Keys() {
+				exportedValue := rawExports.Get(key)
+				if rawFunc, ok := goja.AssertFunction(exportedValue); ok {
+					localHost := scopedHost
+
+					boundMethod := vm.ToValue(func(call goja.FunctionCall) goja.Value {
+						originalHost := vm.Get("host")
+						_ = vm.Set("host", localHost)
+
+						res, innerErr := rawFunc(goja.Undefined(), call.Arguments...)
+
+						_ = vm.Set("host", originalHost)
+
+						if innerErr != nil {
+							panic(innerErr)
+						}
+						return res
+					})
+					_ = boundPluginInstance.Set(key, boundMethod)
+				} else {
+					_ = boundPluginInstance.Set(key, exportedValue)
+				}
+			}
+
+			_ = pluginsObj.Set(name, boundPluginInstance)
 		}
 
-		vm := pool.Get().(*goja.Runtime)
-
-		_ = vm.Set("event", customEvent)
-
-		userHost := vm.Get("host")
-		if userHost == nil || goja.IsUndefined(userHost) {
-			userHost = vm.NewObject()
-			_ = vm.Set("host", userHost)
-		}
-		_ = userHost.ToObject(vm).Set("log", func(level string, msg string) {
+		userHost := vm.NewObject()
+		_ = userHost.Set("log", func(level string, msg string) {
 			logLevel := utils.ParseLogLevel(level, slog.LevelInfo)
 			log.Log(context.Background(), logLevel, msg)
 		})
 
-		if _, err = vm.RunProgram(program); err != nil {
+		_ = vm.Set("host", userHost)
+		_ = vm.Set("eventName", customEvent.Name)
+		_ = vm.Set("eventData", customEvent.Data)
+		_ = vm.Set("module", goja.Undefined())
+		_ = vm.Set("exports", goja.Undefined())
+
+		// timeBudget := time.Millisecond * 150
+		// timer := time.AfterFunc(timeBudget, func() {
+		// 	vm.Interrupt("Script execution exceeded allocated time budget limit")
+		// })
+
+		_, err = vm.RunProgram(program)
+		// timer.Stop()
+
+		if err != nil {
 			log.Error("script runtime execution crashed", "error", err.Error())
 		}
-
-		_ = vm.Set("event", goja.Undefined())
-		pool.Put(vm)
 	})
 
 	ss.cachedScripts[scriptID] = &ScriptCache{
@@ -300,14 +308,9 @@ func (ss *ScriptsService) GetMonacoEnvironment(topic string) (string, error) {
 interface %s {
 %s}
 
-interface WailsEvent {
-    id: string;
-    name: string;
-    sender: string;
-    data: %s;
-}
 
-declare const event: WailsEvent;
+declare const eventName: string;
+declare const eventData: %s;
 
 interface YoutubeReplyResponse {
     status: "success" | "error";
@@ -343,13 +346,18 @@ func (ss *ScriptsService) ServiceStartup(ctx context.Context, options applicatio
 	})
 
 	// WHAT DO YOU MEAN JSON.stringify DOESN'T CAPTURE FUNCTIONS?????????????
-	// ss.RegisterScriptAndBindToBus(
-	// 	models.EventKeyManualInvoke,
-	// 	"test_script",
-	// 	`host.log("info", JSON.stringify({
-	//       string_utils: Object.keys(plugins.string_utils)
-	//   }))`,
-	// )
-	// application.Get().Event.Emit(string(models.EventKeyManualInvoke))
+	ss.RegisterScriptAndBindToBus(
+		models.EventKeyManualInvoke,
+		"test_script",
+		`host.log("info", plugins.test_plugin.Hello())`,
+	)
+	ss.RegisterScriptAndBindToBus(
+		models.EventKeyManualInvoke,
+		"network_test_script",
+		`host.log("info", JSON.stringify(plugins.test_plugin.sendToLogServer("test 1234")))`,
+	)
+
+	application.Get().Event.Emit(string(models.EventKeyManualInvoke))
+
 	return nil
 }
