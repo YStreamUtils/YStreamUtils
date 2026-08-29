@@ -1,8 +1,10 @@
 # YStreamUtils
 
+## CURRENTLY VERY WIP, I HAVE MOST OF IT WORKING I THINK?
+
 ## The Stream Companion You Didn't Ask For
 
-I keep bouncing around between C# and go, but I have decided to just use Javascript.
+I keep bouncing around between C# + C#/js/py and go + wasm, but I have decided to just use go + js/ts.
 
 I only use clankers for research, I know my implementation is bad... make a PR idk.
 
@@ -20,8 +22,11 @@ var logger = GetService("Logger");
 ```js
 // JS
 const logger = GetService("Logger")
+const logger = host.log("info", "blah blah blah")
 // or whatever idk
 ```
+
+### [Currently Supported Events](./internal/models/event_keys.go)
 
 ### [Current Roadmap](TODO.md)
 
