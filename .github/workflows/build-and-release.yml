@@ -61,7 +61,7 @@ jobs:
           cache: "npm"
 
       - name: Install Wails v3 CLI
-        shell: ${{ matrix.platform.os == 'windows-latest' && 'pwsh' || 'bash' }}
+        shell: "bash"
         run: |
           go install github.com/wailsapp/wails/v3/cmd/wails3@latest
 
