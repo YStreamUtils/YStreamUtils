@@ -20,7 +20,7 @@ jobs:
       - name: Install NSIS Compiler
         run: |
           sudo apt-get update
-          sudo apt-get install -y nsis
+          sudo apt-get install -y nsis pkg-config build-essential libgtk-4-dev libwebkitgtk-6.0-dev
 
       - name: Setup Go
         uses: actions/setup-go@v5
