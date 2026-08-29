@@ -36,3 +36,7 @@ export function GetProfile(): $CancellablePromise<models$0.UserProfile | null> {
 export function SendChannelReply(liveChatID: string, authorID: string, replyText: string): $CancellablePromise<void> {
     return $Call.ByID(3095995661, liveChatID, authorID, replyText);
 }
+
+export function SendMessage(liveChatID: string, message: string): $CancellablePromise<void> {
+    return $Call.ByID(1820558823, liveChatID, message);
+}

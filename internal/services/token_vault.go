@@ -2,44 +2,55 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 
 	"github.com/ystreamutils/YStreamUtils/internal/auth"
 	"github.com/ystreamutils/YStreamUtils/internal/models"
-	"github.com/zalando/go-keyring"
+	"github.com/ystreamutils/YStreamUtils/internal/utils"
 	"golang.org/x/oauth2"
 )
 
 const AppServiceName = "live.ysnt.ystreamutils"
 
-type TokenSourceFunc func() (*oauth2.Token, error)
+type tokenSourceFunc func() (*oauth2.Token, error)
 
-func (f TokenSourceFunc) Token() (*oauth2.Token, error) {
+func (f tokenSourceFunc) Token() (*oauth2.Token, error) {
 	return f()
 }
 
+type OAuthConfig struct {
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+}
+
 type TokenVault struct {
-	BaseService
+	Logger      *slog.Logger
+	tokenStore  *auth.KeyringStore[*oauth2.Token]
+	configStore *auth.KeyringStore[OAuthConfig]
 }
 
 func NewTokenVault() *TokenVault {
+	base := utils.NewServiceLogger("TokenVault")
 	return &TokenVault{
-		BaseService: NewBaseService("TokenVault"),
+		Logger:      base,
+		tokenStore:  auth.NewKeyringStore[*oauth2.Token](AppServiceName+".session", base),
+		configStore: auth.NewKeyringStore[OAuthConfig](AppServiceName+".oauth-config", base),
 	}
 }
 
+// ---- Sessions ----
+
 func (v *TokenVault) GetValidSession(platform models.Platform) (*oauth2.Token, error) {
-	token, err := v.GetSession(platform)
+	reuseSource, err := v.GetTokenSource(platform)
 	if err != nil {
 		return nil, err
 	}
 
-	config := auth.OAuthConfigs[platform]
-
-	baseSource := config.TokenSource(context.Background(), token)
-	reuseSource := oauth2.ReuseTokenSource(token, baseSource)
+	token, err := v.getSession(platform)
+	if err != nil {
+		return nil, err
+	}
 
 	freshToken, err := reuseSource.Token()
 	if err != nil {
@@ -48,7 +59,7 @@ func (v *TokenVault) GetValidSession(platform models.Platform) (*oauth2.Token, e
 	}
 
 	if freshToken.AccessToken != token.AccessToken {
-		v.Logger.Info("OAuth session string expired. Token successfully refreshed. Persisting update to vault...", slog.String("platform", string(platform)))
+		v.Logger.Debug("OAuth session expired. Token successfully refreshed. Persisting update to vault...", slog.String("platform", string(platform)))
 		if err := v.StoreSession(platform, freshToken); err != nil {
 			v.Logger.Error("Failed updating keyring with refreshed credential token parameters", slog.String("platform", string(platform)), slog.Any("error", err))
 		}
@@ -57,40 +68,85 @@ func (v *TokenVault) GetValidSession(platform models.Platform) (*oauth2.Token, e
 	return freshToken, nil
 }
 
-func (v *TokenVault) StoreSession(platform models.Platform, token *oauth2.Token) error {
-	data, err := json.Marshal(token)
+func (v *TokenVault) GetTokenSource(platform models.Platform) (oauth2.TokenSource, error) {
+	config, err := v.GetConfig(platform)
 	if err != nil {
-		v.Logger.Error("Failed to marshal native oauth2 token", slog.String("platform", string(platform)), slog.Any("error", err))
-		return err
+		return nil, fmt.Errorf("failed to retrieve oauth configuration: %w", err)
 	}
 
-	err = keyring.Set(AppServiceName, string(platform), string(data))
+	token, err := v.getSession(platform)
 	if err != nil {
-		v.Logger.Error("Failed to write token to hardware OS keyring", slog.String("platform", string(platform)), slog.Any("error", err))
-		return err
+		return nil, fmt.Errorf("failed to retrieve session token: %w", err)
 	}
 
-	v.Logger.Info("Securely saved account token parameters to system vault", slog.String("platform", string(platform)))
-	return nil
+	baseSource := config.TokenSource(context.Background(), token)
+
+	savingSource := oauth2.ReuseTokenSource(token, tokenSourceFunc(func() (*oauth2.Token, error) {
+		freshToken, err := baseSource.Token()
+		if err != nil {
+			return nil, err
+		}
+
+		v.Logger.Debug("OAuth session expired. Token successfully refreshed via provider.",
+			slog.String("platform", string(platform)),
+			slog.Time("new_expiry", freshToken.Expiry),
+		)
+
+		if err := v.StoreSession(platform, freshToken); err != nil {
+			v.Logger.Error("Failed updating vault with refreshed token parameters",
+				slog.String("platform", string(platform)),
+				slog.Any("error", err),
+			)
+		}
+		return freshToken, nil
+	}))
+
+	return savingSource, nil
 }
 
-func (v *TokenVault) GetSession(platform models.Platform) (*oauth2.Token, error) {
-	secretString, err := keyring.Get(AppServiceName, string(platform))
+func (v *TokenVault) StoreSession(platform models.Platform, token *oauth2.Token) error {
+	v.Logger.Debug("Securely saving account token parameters to system vault", slog.String("platform", string(platform)))
+	return v.tokenStore.Store(string(platform), token)
+}
+
+func (v *TokenVault) getSession(platform models.Platform) (*oauth2.Token, error) {
+	token, err := v.tokenStore.Get(string(platform))
 	if err != nil {
 		v.Logger.Warn("No credentials matching platform discovered in system vault", slog.String("platform", string(platform)))
 		return nil, err
 	}
-
-	var token oauth2.Token
-	if err := json.Unmarshal([]byte(secretString), &token); err != nil {
-		v.Logger.Error("Corrupted token mapping sequence found inside keyring", slog.String("platform", string(platform)))
-		return nil, err
-	}
-
-	return &token, nil
+	return token, nil
 }
 
 func (v *TokenVault) DeleteSession(platform models.Platform) error {
-	v.Logger.Info("Wiping credentials permanently from OS keyring", slog.String("platform", string(platform)))
-	return keyring.Delete(AppServiceName, string(platform))
+	v.Logger.Debug("Wiping credentials permanently from OS keyring", slog.String("platform", string(platform)))
+	return v.tokenStore.Delete(string(platform))
+}
+
+// ---- Configs ----
+
+func (v *TokenVault) StoreConfig(platform models.Platform, cfg OAuthConfig) error {
+	v.Logger.Debug("Storing updated OAuth application credentials in config store",
+		slog.String("platform", string(platform)),
+		slog.String("client_id", cfg.ClientID),
+	)
+	return v.configStore.Store(string(platform), cfg)
+}
+
+func (v *TokenVault) GetConfig(platform models.Platform) (*oauth2.Config, error) {
+	storedConfig, err := v.configStore.Get(string(platform))
+	if err != nil {
+		return nil, err
+	}
+
+	baseConfig := auth.OAuthConfigs[platform]
+	if baseConfig == nil {
+		return nil, fmt.Errorf("no base blueprint config found for platform: %s", platform)
+	}
+
+	config := *baseConfig
+	config.ClientID = storedConfig.ClientID
+	config.ClientSecret = storedConfig.ClientSecret
+
+	return &config, nil
 }

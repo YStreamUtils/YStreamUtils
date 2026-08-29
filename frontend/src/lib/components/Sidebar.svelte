@@ -1,7 +1,7 @@
 <script lang="ts">
   import Button from "./Button.svelte";
   import { House, Tv, Settings, FileTerminal, Component, Home, Puzzle } from "@lucide/svelte";
-  import { navigateTo, router, sidebar, pages } from "../navigation.svelte";
+  import { navigateTo, router, sidebar, pages } from "../state/navigation.svelte";
 </script>
 
 <div id="sidebar" class="sidebar">
@@ -12,23 +12,24 @@
   </nav>
 
   <div class="bottom-nav">
-  {@render navButton(Puzzle, "plugins", "Plugins")}
+    {@render navButton(Puzzle, "plugins", "Plugins")}
     {@render navButton(Settings, "settings", "Settings")}
   </div>
 </div>
 
 {#snippet navButton(icon: typeof House, path: keyof typeof pages, title: string)}
-<Button
-      variant="transparent"
-      align="left"
-      icon={icon}
-      fullWidth={true}
-      active={router.current === path}
-      onclick={() => navigateTo(path)}
-    >
-      <p class:hidden={!sidebar.isOpen}>{title}</p>
-    </Button>
+  <Button
+    variant="transparent"
+    align="left"
+    {icon}
+    fullWidth={true}
+    active={router.current === path}
+    onclick={() => navigateTo(path)}
+  >
+    <p class:hidden={!sidebar.isOpen}>{title}</p>
+  </Button>
 {/snippet}
+
 <style>
   .sidebar {
     box-sizing: border-box;

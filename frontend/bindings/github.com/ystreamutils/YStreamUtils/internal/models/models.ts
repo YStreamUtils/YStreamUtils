@@ -12,6 +12,8 @@ export enum EventKey {
     EventKeyStreamChatMessage = "stream:chat_message",
 
     EventKeyYoutubeSuperchat = "stream:youtube:superchat",
+
+    EventKeyApplicationLog = "app:log",
 };
 
 export enum Platform {
@@ -28,4 +30,6 @@ export enum Platform {
 export interface UserProfile {
     "displayName": string;
     "avatarUrl": string;
+    "channelID": string;
+    "handle": string;
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -21,30 +22,29 @@ import (
 	"github.com/ystreamutils/YStreamUtils/internal/utils"
 )
 
-type ActivePlugin struct {
-	Name           string
+type Plugin struct {
 	JavaScriptCode string
 	TypeScriptDefs string
-	Functions      []string
 	Manifest       types.PluginManifest
 }
 
 type PluginService struct {
-	BaseService
-	ctx           context.Context
-	settings      *SettingsService
-	mu            sync.RWMutex
-	pluginDir     string
-	activePlugins map[string]ActivePlugin
+	Logger          *slog.Logger
+	ctx             context.Context
+	settings        *SettingsService
+	mu              sync.RWMutex
+	pluginDir       string
+	activePlugins   map[string]Plugin
+	pluginTypeCache string
 }
 
 func NewPluginService(ctx context.Context, pluginDir string, settings *SettingsService) *PluginService {
 	return &PluginService{
-		BaseService:   NewBaseService("PluginService"),
+		Logger:        utils.NewServiceLogger("PluginService"),
 		ctx:           ctx,
 		settings:      settings,
 		pluginDir:     filepath.Join(pluginDir, "plugins"),
-		activePlugins: map[string]ActivePlugin{},
+		activePlugins: map[string]Plugin{},
 	}
 }
 
@@ -93,7 +93,7 @@ func (ps *PluginService) fetchSingleRegistry(url string) ([]types.PluginManifest
 	}
 
 	var distribution types.RegistryDistribution
-	if _, err := toml.DecodeReader(resp.Body, &distribution); err != nil {
+	if _, err := toml.NewDecoder(resp.Body).Decode(&distribution); err != nil {
 		return nil, err
 	}
 
@@ -200,7 +200,7 @@ func (ps *PluginService) DownloadAndInstallPlugin(manifest types.PluginManifest)
 	return ps.ReloadLocalPlugins()
 }
 
-func (ps *PluginService) GetActivePlugins() map[string]ActivePlugin {
+func (ps *PluginService) GetActivePlugins() map[string]Plugin {
 	ps.mu.RLock()
 	defer ps.mu.RUnlock()
 	return ps.activePlugins
@@ -219,7 +219,7 @@ func (ps *PluginService) ReloadLocalPlugins() error {
 		return fmt.Errorf("failed reading dynamic local disk configurations: %w", err)
 	}
 
-	newActivePlugins := map[string]ActivePlugin{}
+	newActivePlugins := map[string]Plugin{}
 
 	for _, entry := range entries {
 		if !entry.IsDir() {
@@ -242,20 +242,29 @@ func (ps *PluginService) ReloadLocalPlugins() error {
 		}
 		ps.Logger.Info(fmt.Sprintf("Found plugin %s at %s", manifest.Name, manifestPath))
 
+		pluginName := utils.GetSafePluginNamespace(manifest.Name)
+
 		fullEntryPointPath := filepath.Join(folderPath, manifest.EntryPoint)
 		buildResult := api.Build(api.BuildOptions{
 			EntryPoints:       []string{fullEntryPointPath},
 			Bundle:            true,
 			Write:             false,
 			Target:            api.ES2020,
-			Format:            api.FormatCommonJS,
+			Format:            api.FormatIIFE,
+			GlobalName:        "tempPlugin",
 			Platform:          api.PlatformNeutral,
-			External:          []string{"host"},
 			TreeShaking:       api.TreeShakingTrue,
 			MinifyIdentifiers: false,
 			MinifySyntax:      true,
-			MinifyWhitespace:  false,
+			MinifyWhitespace:  true,
 			LogLevel:          api.LogLevelSilent,
+
+			Banner: map[string]string{
+				"js": fmt.Sprintf("var %s = (function(host) {\n", pluginName),
+			},
+			Footer: map[string]string{
+				"js": "\n  return tempPlugin;\n})(host);",
+			},
 		})
 
 		if len(buildResult.Errors) > 0 {
@@ -270,7 +279,6 @@ func (ps *PluginService) ReloadLocalPlugins() error {
 		}
 
 		bundledJSCode := string(buildResult.OutputFiles[0].Contents)
-
 		typeDefs := ""
 		defFilePath := filepath.Join(folderPath, "index.d.ts")
 		if info, err := os.Stat(defFilePath); err == nil && !info.IsDir() {
@@ -279,15 +287,18 @@ func (ps *PluginService) ReloadLocalPlugins() error {
 			}
 		}
 
-		newActivePlugins[utils.GetSafePluginNamespace(manifest.Name)] = ActivePlugin{
-			Name:           manifest.Name,
+		newActivePlugins[pluginName] = Plugin{
 			JavaScriptCode: bundledJSCode,
 			TypeScriptDefs: typeDefs,
-			Functions:      []string{},
 			Manifest:       manifest,
 		}
 	}
 
+	generatedTypes, err := buildDynamicPluginDefinitions(newActivePlugins)
+	if err != nil {
+		return err
+	}
+	ps.pluginTypeCache = generatedTypes
 	ps.activePlugins = newActivePlugins
 	return nil
 }
@@ -318,9 +329,7 @@ func (ps *PluginService) StartDevPluginWatcher(onReload func()) {
 							continue
 						}
 						lastReload = time.Now()
-
 						ps.Logger.Info("dev plugin file modification caught! Auto-recompiling...", "file", filepath.Base(event.Name))
-
 						_ = ps.ReloadLocalPlugins()
 
 						onReload()
@@ -347,6 +356,39 @@ func (ps *PluginService) StartDevPluginWatcher(onReload func()) {
 			ps.Logger.Info("watching development plugin for auto-reload on save", "path", devFolderPath)
 		}
 	}
+}
+
+func buildDynamicPluginDefinitions(activePlugins map[string]Plugin) (string, error) {
+	var sb strings.Builder
+
+	sb.WriteString("declare namespace plugins {\n")
+
+	for name, p := range activePlugins {
+		fmt.Fprintf(&sb, "    namespace %s {\n", name)
+
+		if p.TypeScriptDefs != "" {
+			cleanedDefs := strings.ReplaceAll(p.TypeScriptDefs, "export ", "")
+			cleanedDefs = strings.ReplaceAll(cleanedDefs, "declare ", "")
+
+			cleanedDefs = strings.ReplaceAll(cleanedDefs, "const host: HostContext;", "")
+			cleanedDefs = strings.ReplaceAll(cleanedDefs, "const host:HostContext;", "")
+
+			indentedDefs := strings.ReplaceAll(cleanedDefs, "\n", "\n        ")
+			sb.WriteString("        ")
+			sb.WriteString(strings.TrimSpace(indentedDefs))
+			sb.WriteString("\n")
+		}
+		sb.WriteString("    }\n\n")
+	}
+
+	sb.WriteString("}\n")
+	return sb.String(), nil
+}
+
+func (ps *PluginService) GetDynamicPluginDefinitions() string {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	return ps.pluginTypeCache
 }
 
 func (ps *PluginService) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {

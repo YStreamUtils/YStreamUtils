@@ -5,11 +5,14 @@
 // @ts-ignore: Unused imports
 import * as types$0 from "../../../YStreamUtils-Plugin-Registry/ci/types/models.js";
 
-export interface ActivePlugin {
-    "Name": string;
+export interface OAuthConfig {
+    "client_id": string;
+    "client_secret": string;
+}
+
+export interface Plugin {
     "JavaScriptCode": string;
     "TypeScriptDefs": string;
-    "Functions": string[] | null;
     "Manifest": types$0.PluginManifest;
 }
 

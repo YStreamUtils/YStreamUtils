@@ -21,7 +21,8 @@ export {
 };
 
 export type {
-    ActivePlugin,
+    OAuthConfig,
+    Plugin,
     PluginSettings,
     Settings,
     UISettings

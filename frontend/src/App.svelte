@@ -1,23 +1,22 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import AppDecorations from "./lib/components/AppDecorations.svelte";
-  import Sidebar from "./lib/components/Sidebar.svelte";
+  import { onMount } from 'svelte';
+  import AppDecorations from './lib/components/AppDecorations.svelte';
+  import Sidebar from './lib/components/Sidebar.svelte';
 
-  import { pages, router, sidebar } from "./lib/navigation.svelte";
-  import { appState, initSettings } from "./lib/settings.svelte";
-
-  import "@fontsource/jetbrains-mono";
-  import "./lib/style.css";
-  import { loadAllProfiles } from "./lib/auth.svelte";
-    import { InitStreamState } from "./lib/streamState.svelte";
+  import '@fontsource/jetbrains-mono';
+  import '$lib/style.css';
+  import { pages, router, sidebar } from '$lib/state/navigation.svelte';
+  import { loadAllProfiles } from '$lib/state/auth.svelte';
+  import { initSettings, appState } from '$lib/state/settings.svelte';
+  import { InitStreamState } from '$lib/state/streamState.svelte';
 
   let ActiveScreen = $derived(pages[router.current]);
   $effect(() => {
-    sessionStorage.setItem("route", router.current);
+    sessionStorage.setItem('route', router.current);
   });
 
   $effect(() => {
-    sessionStorage.setItem("sidebarOpen", JSON.stringify(sidebar.isOpen));
+    sessionStorage.setItem('sidebarOpen', JSON.stringify(sidebar.isOpen));
   });
 
   onMount(async () => {
@@ -29,8 +28,8 @@
   $effect(() => {
     if (appState.settings?.UISettings) {
       const { Color, Theme } = appState.settings.UISettings;
-      document.documentElement.style.setProperty("--color-brand", Color);
-      document.documentElement.setAttribute("data-theme", Theme);
+      document.documentElement.style.setProperty('--color-brand', Color);
+      document.documentElement.setAttribute('data-theme', Theme);
     }
   });
 </script>
@@ -41,8 +40,7 @@
   <div
     class="app-container"
     class:closed={!sidebar.isOpen}
-    class:full-closed={!sidebar.isOpen &&
-      appState.settings?.UISettings.FullCloseSidebar}
+    class:full-closed={!sidebar.isOpen && appState.settings?.UISettings.FullCloseSidebar}
   >
     <Sidebar />
     <main class="main-content">
@@ -77,17 +75,10 @@
   .main-content {
     padding: var(--space-2);
     overflow-y: auto;
-    background-color: light-dark(
-      var(--color-background),
-      var(--neutral-950-tint)
-    );
+    background-color: light-dark(var(--color-background), var(--neutral-950-tint));
     background-image: light-dark(
       none,
-      radial-gradient(
-        circle at 80% 80%,
-        color-mix(in srgb, var(--color-brand) 10%, transparent),
-        transparent 45%
-      )
+      radial-gradient(circle at 80% 80%, color-mix(in srgb, var(--color-brand) 10%, transparent), transparent 45%)
     );
     background-repeat: no-repeat;
   }

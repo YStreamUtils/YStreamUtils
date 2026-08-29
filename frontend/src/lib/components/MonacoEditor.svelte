@@ -1,22 +1,31 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
-  import loader from "@monaco-editor/loader";
-  import * as monacoCore from "monaco-editor";
-  import { createHighlighter } from "shiki";
-  import { shikiToMonaco } from "@shikijs/monaco";
+  import { onMount, onDestroy } from 'svelte';
+  import loader from '@monaco-editor/loader';
+  import * as monacoCore from 'monaco-editor';
+  import { createHighlighter } from 'shiki';
+  import { shikiToMonaco } from '@shikijs/monaco';
 
-  import type { editor, IDisposable } from "monaco-editor";
-  import { GetMonacoEnvironment } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/services/scriptsservice";
+  import type { editor, IDisposable } from 'monaco-editor';
+  import {
+    GetMonacoEnvironment,
+    RegisterScriptAndBindToBus
+  } from '../../../bindings/github.com/ystreamutils/YStreamUtils/internal/services/scriptsservice';
+  import { EventKey } from '../../../bindings/github.com/ystreamutils/YStreamUtils/internal/models';
+  import { Events } from '@wailsio/runtime';
+  import Button from './Button.svelte';
+  import { Check, Save } from '@lucide/svelte';
 
   loader.config({ monaco: monacoCore });
 
   let {
-    value = $bindable(""),
-    eventKey = "stream:chat_message",
-  }: {
-    value: string;
-    eventKey: string;
-  } = $props();
+    userScript = $bindable('// Try typing "eventData." or "plugins." here!\n\nhost.log("info", "Hello from Goja!");\n'),
+    currentKey = EventKey.EventKeyManualInvoke
+  }: Props = $props();
+
+  interface Props {
+    currentKey: EventKey;
+    userScript: string;
+  }
 
   let container: HTMLDivElement;
 
@@ -26,7 +35,7 @@
   let extraLibsDisposable = $state.raw<IDisposable | null>(null);
   let isUpdatingFromModel = $state(false);
 
-  async function updateTypings(currentKey: string): Promise<void> {
+  async function updateTypings(currentKey: EventKey): Promise<void> {
     if (!monacoInstance) return;
     try {
       const tsDefinitions = await GetMonacoEnvironment(currentKey);
@@ -36,26 +45,12 @@
         extraLibsDisposable.dispose();
       }
 
-      const typeContent = `
-        ${tsDefinitions}
-        
-        // Mock helper interface for raw console validation checks
-        interface Window {
-           __DEBUG_MONACO_ENVIRONMENT__: string;
-        }
-      `;
-
-      (window as any).__DEBUG_MONACO_ENVIRONMENT__ = typeContent;
-
       const tsDefaults = monacoInstance.typescript.typescriptDefaults;
-      const typeUri = "file:///node_modules/@types/ystream-internal/index.d.ts";
+      const typeUri = 'file:///node_modules/@types/ystream-internal/index.d.ts';
 
-      extraLibsDisposable = tsDefaults.addExtraLib(typeContent, typeUri);
+      extraLibsDisposable = tsDefaults.addExtraLib(tsDefinitions, typeUri);
     } catch (err) {
-      console.error(
-        "[Monaco Environment] Failed to inject dynamic backend payloads:",
-        err,
-      );
+      console.error('[Monaco Environment] Failed to inject dynamic backend payloads:', err);
     }
   }
 
@@ -70,17 +65,17 @@
         module: monacoInstance.typescript.ModuleKind.None,
         strict: true,
         allowNonTsExtensions: true,
-        noLib: false,
+        noLib: false
       });
 
-      await updateTypings(eventKey);
+      await updateTypings(currentKey);
 
-      const fileUri = monaco.Uri.parse("file:///main.ts");
-      modelInstance = monaco.editor.createModel(value, "typescript", fileUri);
+      const fileUri = monaco.Uri.parse('file:///main.ts');
+      modelInstance = monaco.editor.createModel(userScript, 'typescript', fileUri);
 
       const highlighter = await createHighlighter({
-        themes: ["one-dark-pro"],
-        langs: ["typescript", "javascript", "json"],
+        themes: ['one-dark-pro'],
+        langs: ['typescript', 'javascript', 'json']
       });
 
       shikiToMonaco(highlighter, monacoInstance as any);
@@ -88,36 +83,32 @@
       editorInstance = monacoInstance.editor.create(container, {
         model: modelInstance,
         automaticLayout: false,
-        theme: "one-dark-pro",
-        minimap: { enabled: false },
+        theme: 'one-dark-pro',
+        minimap: { enabled: false }
       });
 
       editorInstance.onDidChangeModelContent(() => {
         if (isUpdatingFromModel) return;
 
         isUpdatingFromModel = true;
-        value = editorInstance?.getValue() || "";
+        userScript = editorInstance?.getValue() || '';
         isUpdatingFromModel = false;
       });
     } catch (error) {
-      console.error("[Monaco Loader Element Injection Failed]:", error);
+      console.error('[Monaco Loader Element Injection Failed]:', error);
     }
   });
 
   $effect(() => {
-    if (monacoInstance && eventKey) {
-      updateTypings(eventKey);
+    if (monacoInstance && currentKey) {
+      updateTypings(currentKey);
     }
   });
 
   $effect(() => {
-    if (
-      editorInstance &&
-      value !== editorInstance.getValue() &&
-      !isUpdatingFromModel
-    ) {
+    if (editorInstance && userScript !== editorInstance.getValue() && !isUpdatingFromModel) {
       isUpdatingFromModel = true;
-      editorInstance.setValue(value);
+      editorInstance.setValue(userScript);
       isUpdatingFromModel = false;
     }
   });
@@ -133,13 +124,11 @@
       editorInstance.dispose();
     }
     if (container) {
-      container.innerHTML = "";
+      container.innerHTML = '';
     }
   });
 
-  function handleResize(
-    event: UIEvent & { currentTarget: EventTarget & Window },
-  ) {
+  function handleResize(event: UIEvent & { currentTarget: EventTarget & Window }) {
     editorInstance?.layout();
   }
 </script>

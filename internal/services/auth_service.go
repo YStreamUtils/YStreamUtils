@@ -9,26 +9,28 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/ystreamutils/YStreamUtils/internal/auth"
 	"github.com/ystreamutils/YStreamUtils/internal/models"
 	"github.com/ystreamutils/YStreamUtils/internal/ports"
+	"github.com/ystreamutils/YStreamUtils/internal/utils"
 	"golang.org/x/oauth2"
 )
 
 type AuthService struct {
-	BaseService
-	vault          ports.SecretVault
+	Logger         *slog.Logger
+	vault          *TokenVault
 	profileDrivers map[models.Platform]ports.StreamProfileDriver
 	Profiles       map[string]*models.UserProfile
 }
 
-func NewAuthService(v ports.SecretVault) *AuthService {
+func NewAuthService(vault *TokenVault) *AuthService {
 	return &AuthService{
-		BaseService:    NewBaseService("AuthService"),
-		vault:          v,
+		Logger:         utils.NewServiceLogger("AuthService"),
+		vault:          vault,
 		profileDrivers: make(map[models.Platform]ports.StreamProfileDriver),
 		Profiles:       make(map[string]*models.UserProfile),
 	}
@@ -41,8 +43,8 @@ func (s *AuthService) RegisterProfileDriver(platform models.Platform, provider p
 func (s *AuthService) LoginPlatform(ctx context.Context, platform models.Platform) (bool, error) {
 	s.Logger.Info("Triggering interactive web browser authentication flow", slog.String("platform", string(platform)))
 
-	baseConfig, exists := auth.OAuthConfigs[platform]
-	if !exists {
+	baseConfig, err := s.vault.GetConfig(platform)
+	if err != nil {
 		return false, fmt.Errorf("platform configuration profile unrecognized: %s", platform)
 	}
 
@@ -156,7 +158,7 @@ func (s *AuthService) LoginPlatform(ctx context.Context, platform models.Platfor
 	}
 }
 
-func (s *AuthService) GetProfile(platform models.Platform) (*models.UserProfile, error) {
+func (s *AuthService) GetProfile(ctx context.Context, platform models.Platform) (*models.UserProfile, error) {
 	if profile, exists := s.Profiles[string(platform)]; exists && profile != nil {
 		return profile, nil
 	}
@@ -166,49 +168,49 @@ func (s *AuthService) GetProfile(platform models.Platform) (*models.UserProfile,
 		return nil, fmt.Errorf("no profile driver registered for platform: %s", platform)
 	}
 
-	ctx := context.Background()
 	profile, err := driver.GetProfile(ctx)
 	if err != nil {
-		s.Logger.Error("Failed to fetch profile", slog.String("platform", string(platform)), slog.Any("error", err))
+		s.Logger.Error("Failed to fetch profile from platform provider",
+			slog.String("platform", string(platform)),
+			slog.Any("error", err),
+		)
 		return nil, err
 	}
 
-	s.Profiles[string(platform)] = profile
-	s.Logger.Info("Fetched and cached profile", slog.String("platform", string(platform)))
+	if profile != nil {
+		s.Profiles[string(platform)] = profile
+
+		s.Logger.Info("Successfully fetched, mapped, and cached profile identity context",
+			slog.String("platform", string(platform)),
+		)
+	}
 
 	return profile, nil
 }
 
-func (s *AuthService) ServiceStartup(ctx context.Context, options application.Options) (bool, error) {
-	for platform, baseConfig := range auth.OAuthConfigs {
-		savedToken, err := s.vault.GetSession(platform)
+func (s *AuthService) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
+	for platform := range auth.OAuthConfigs {
+		tokenSource, err := s.vault.GetTokenSource(platform)
 		if err != nil {
-			s.Logger.Warn("No saved session found for platform", slog.String("platform", string(platform)))
 			continue
 		}
 
-		config := *baseConfig
-
-		tokenSource := config.TokenSource(ctx, savedToken)
-
-		currentToken, err := tokenSource.Token()
+		_, err = tokenSource.Token()
 		if err != nil {
-			_ = s.vault.DeleteSession(platform)
-			s.Logger.Error("Session expired or revoked", slog.String("platform", string(platform)), slog.Any("error", err))
-			continue
-		}
-
-		if currentToken.AccessToken != savedToken.AccessToken {
-			if err := s.vault.StoreSession(platform, currentToken); err != nil {
-				s.Logger.Error("Failed to persist refreshed token", slog.String("platform", string(platform)), slog.Any("error", err))
+			if strings.Contains(err.Error(), "refresh token is not set") {
+			} else {
+				_ = s.vault.DeleteSession(platform)
+				s.Logger.Error("Session validation failed or credential was revoked; cleaning storage",
+					slog.String("platform", string(platform)),
+					slog.Any("error", err),
+				)
 				continue
 			}
-			s.Logger.Info("Tokens updated and synchronized automatically during launch", slog.String("platform", string(platform)))
+		} else {
+			s.Logger.Info("User session authenticated successfully on launch", slog.String("platform", string(platform)))
 		}
 
-		s.Logger.Info("User session authenticated successfully on launch", slog.String("platform", string(platform)))
-
-		profile, err := s.GetProfile(platform)
+		profile, err := s.GetProfile(ctx, platform)
 		if err != nil {
 			s.Logger.Error("Failed to get profile during startup", slog.String("platform", string(platform)), slog.Any("error", err))
 			continue
@@ -219,5 +221,5 @@ func (s *AuthService) ServiceStartup(ctx context.Context, options application.Op
 		}
 	}
 
-	return true, nil
+	return nil
 }

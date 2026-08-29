@@ -4,16 +4,21 @@ import (
 	"context"
 	"embed"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/ystreamutils/YStreamUtils/internal/models"
 	"github.com/ystreamutils/YStreamUtils/internal/services"
+	"github.com/ystreamutils/YStreamUtils/internal/utils"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
+
+//go:embed host.d.ts
+var hostTypes string
 
 const AppName = "YStreamUtils"
 
@@ -55,7 +60,7 @@ func setupServices() []application.Service {
 	settingsService := services.NewSettingsService(userConfigDir)
 	pluginService := services.NewPluginService(ctx, userConfigDir, settingsService)
 
-	scriptsService := services.NewScriptsService(ctx, pluginService, youtubeService, vaultService)
+	scriptsService := services.NewScriptsService(ctx, pluginService, youtubeService, vaultService, hostTypes)
 
 	return []application.Service{
 		application.NewService(vaultService),
@@ -81,6 +86,8 @@ func main() {
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
 	})
+	wailsHandler := utils.NewLogHandler(os.Stdout, app.Event, userConfigDir)
+	slog.SetDefault(slog.New(wailsHandler))
 
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:  "YStreamUtils",

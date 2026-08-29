@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Button from "./Button.svelte";
+
   interface Props {
     platform: string;
     isLoadingProfile: boolean;
@@ -7,13 +9,8 @@
     onConnect: () => Promise<void>;
   }
 
-  let { 
-    platform,
-    isLoadingProfile,
-    profile,
-    isLoggingIn,
-    onConnect
-  }: Props = $props();
+  let { platform, isLoadingProfile, profile, isLoggingIn, onConnect }: Props =
+    $props();
 
   const handleConnect = async () => {
     try {
@@ -25,25 +22,17 @@
 </script>
 
 {#if isLoadingProfile}
-    <p class="placeholder-content">Checking authentication metrics...</p>
-  {:else if profile}
-    <div class="account-connected">
-      <img
-        src={profile.avatarUrl}
-        alt="Avatar"
-        class="account-avatar"
-      />
-      <span class="account-status">Connected</span>
-    </div>
-  {:else}
-    <button
-      onclick={handleConnect}
-      disabled={isLoggingIn}
-      class="btn btn-connect"
-    >
-      {isLoggingIn ? "Connecting Browser..." : "Link Account"}
-    </button>
-  {/if}
+  <p class="placeholder-content">Checking authentication metrics...</p>
+{:else if profile}
+  <div class="account-connected">
+    <img src={profile.avatarUrl} alt="Avatar" class="account-avatar" />
+    <span class="account-status">Connected</span>
+  </div>
+{:else}
+  <Button onclick={handleConnect} disabled={isLoggingIn}>
+    {isLoggingIn ? "Connecting Browser..." : "Link Account"}
+  </Button>
+{/if}
 
 <style>
   .account-connected {
@@ -71,15 +60,5 @@
     font-size: 0.875rem;
     color: var(--color-text);
     opacity: 0.8;
-  }
-
-  .btn-connect {
-    padding: 8px 16px;
-    font-weight: bold;
-    color: white;
-    cursor: pointer;
-    background: #ff4a4a;
-    border: none;
-    border-radius: 4px;
   }
 </style>

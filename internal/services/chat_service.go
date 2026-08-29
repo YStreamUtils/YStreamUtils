@@ -3,13 +3,15 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/ystreamutils/YStreamUtils/internal/ports"
+	"github.com/ystreamutils/YStreamUtils/internal/utils"
 )
 
 type ChatService struct {
-	BaseService
+	Logger        *slog.Logger
 	mu            sync.RWMutex
 	drivers       map[string]ports.StreamChatDriver
 	activeCancels map[string]context.CancelFunc
@@ -17,7 +19,7 @@ type ChatService struct {
 
 func NewChatService() *ChatService {
 	return &ChatService{
-		BaseService:   NewBaseService("ChatService"),
+		Logger:        utils.NewServiceLogger("ChatService"),
 		drivers:       make(map[string]ports.StreamChatDriver),
 		activeCancels: make(map[string]context.CancelFunc),
 	}

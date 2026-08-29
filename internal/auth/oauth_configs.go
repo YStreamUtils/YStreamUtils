@@ -13,9 +13,8 @@ var OAuthConfigs = map[models.Platform]*oauth2.Config{
 }
 
 var YoutubeOAuthConfig = &oauth2.Config{
-	ClientID: "889238060090-q7ahh2p1v7pgb11s3e0pn8t1r1mc0cft.apps.googleusercontent.com",
-	// Not actually a secret, PKCE
-	ClientSecret: "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",
+	ClientID:     "BRING YOUR OWN ID",
+	ClientSecret: "BRING YOUR OWN SECRET",
 	Endpoint:     google.Endpoint,
 	Scopes: []string{
 		youtube.YoutubeForceSslScope,

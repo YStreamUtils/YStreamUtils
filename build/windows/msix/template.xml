@@ -10,7 +10,7 @@
     <Installer
         Path="ystreamutils.exe"
         Arguments=""
-        InstallLocation="C:\Program Files\YSNT\My Product">
+        InstallLocation="C:\Program Files\YStreamUtils">
     </Installer>
     <PackageInformation
         PackageName="My Product"

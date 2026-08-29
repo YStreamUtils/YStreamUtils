@@ -2,7 +2,6 @@
 
 ## Scripting
 
-- [x] Wasm
 - [x] Host Objects
 - [ ] Javascript/Typescript
 - [ ] Node Graph
@@ -12,11 +11,11 @@
 - [ ] Home Page
 - [ ] Stream/Live Page
 - [ ] Scripting Page
-- [ ] Settings Page
+- [x] Settings Page
 
 ## Integrations
 
-- [ ] Youtube
+- [x] Youtube
 - [ ] Twitch
 - [ ] Kick?
 
@@ -30,8 +29,8 @@
 ## Plugins
 
 - [ ] Settings
-- [ ] Example Plugin
-- [ ] Plugin Registry
+- [x] Example Plugin
+- [x] Plugin Registry
 - [ ] Websocket
 
-<style>h1,h2,h3,h4 { border-bottom: 0; } </style>
+<!-- <style>h1,h2,h3,h4 { border-bottom: 0; } </style> -->

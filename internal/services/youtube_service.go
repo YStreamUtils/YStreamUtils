@@ -6,14 +6,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
-	"github.com/ystreamutils/YStreamUtils/internal/auth"
 	"github.com/ystreamutils/YStreamUtils/internal/models"
-	"github.com/ystreamutils/YStreamUtils/internal/ports"
+	"github.com/ystreamutils/YStreamUtils/internal/utils"
 	"github.com/ystreamutils/YStreamUtils/internal/youtube_protobuf"
-	"golang.org/x/oauth2"
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
 	"google.golang.org/grpc"
@@ -22,15 +21,20 @@ import (
 )
 
 type YouTubeService struct {
-	BaseService
-	vault      ports.SecretVault
+	Logger     *slog.Logger
+	vault      *TokenVault
 	apiService *youtube.Service
 }
 
 func (y *YouTubeService) SendChannelReply(liveChatID string, authorID string, replyText string) error {
 	messageText := fmt.Sprintf("%s: %s", authorID, replyText)
+
+	return y.SendMessage(liveChatID, messageText)
+}
+
+func (y *YouTubeService) SendMessage(liveChatID string, message string) error {
 	messageDetails := &youtube.LiveChatTextMessageDetails{
-		MessageText: messageText,
+		MessageText: message,
 	}
 
 	snippet := &youtube.LiveChatMessageSnippet{
@@ -45,44 +49,33 @@ func (y *YouTubeService) SendChannelReply(liveChatID string, authorID string, re
 
 	call := y.apiService.LiveChatMessages.Insert([]string{"snippet"}, liveChatMessage)
 
-	response, err := call.Do()
+	_, err := call.Do()
 	if err != nil {
 		return fmt.Errorf("failed to send chat message: %w", err)
 	}
-
-	y.Logger.Info("Successfully sent YouTube chat message",
-		slog.String("message_id", response.Id),
-		slog.String("live_chat_id", liveChatID),
-	)
 	return nil
-
 }
 
-func NewYouTubeService(ctx context.Context, v ports.SecretVault) (*YouTubeService, error) {
+func NewYouTubeService(ctx context.Context, v *TokenVault) (*YouTubeService, error) {
 	service := &YouTubeService{
-		BaseService: NewBaseService("YouTubeService"),
-		vault:       v,
+		Logger: utils.NewServiceLogger("YouTubeService"),
+		vault:  v,
 	}
 
 	err := service.CreateClient(ctx)
-	return service, err
+	if err != nil {
+		service.Logger.Error(err.Error())
+	}
+	return service, nil
 }
 
 func (y *YouTubeService) CreateClient(ctx context.Context) error {
-	config, exists := auth.OAuthConfigs["youtube"]
-	if !exists {
-		return fmt.Errorf("missing YouTube OAuth configuration")
-	}
-
-	token, err := y.vault.GetSession("youtube")
+	tokenSource, err := y.vault.GetTokenSource(models.PlatformYouTube)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize token source: %w", err)
 	}
 
-	tokenSource := config.TokenSource(ctx, token)
-	httpClient := oauth2.NewClient(ctx, tokenSource)
-
-	svc, err := youtube.NewService(ctx, option.WithHTTPClient(httpClient))
+	svc, err := youtube.NewService(ctx, option.WithTokenSource(tokenSource))
 	if err != nil {
 		return fmt.Errorf("failed creating live google youtube api engine: %w", err)
 	}
@@ -99,9 +92,10 @@ func (y *YouTubeService) ConnectChat(ctx context.Context, videoId string) error 
 		return fmt.Errorf("failed resolving active chat ID: %w", err)
 	}
 
-	tokenSource := TokenSourceFunc(func() (*oauth2.Token, error) {
-		return y.vault.GetValidSession(models.PlatformYouTube)
-	})
+	tokenSource, err := y.vault.GetTokenSource(models.PlatformYouTube)
+	if err != nil {
+		return err
+	}
 
 	rpcCreds := oauth.TokenSource{
 		TokenSource: tokenSource,
@@ -123,7 +117,7 @@ func (y *YouTubeService) ConnectChat(ctx context.Context, videoId string) error 
 		var nextPageToken string
 
 		baseBackoff := 1 * time.Second
-		maxBackoff := 8 * time.Second
+		maxBackoff := 30 * time.Second
 		currentBackoff := baseBackoff
 
 		event := application.Get().Event
@@ -139,7 +133,19 @@ func (y *YouTubeService) ConnectChat(ctx context.Context, videoId string) error 
 
 			stream, err := client.StreamList(ctx, req)
 			if err != nil {
-				y.Logger.Error("Failed initializing stream step chunk", "error", err)
+				y.Logger.Error("Failed initializing stream step chunk",
+					slog.Any("error", err),
+					slog.Duration("retry_delay", currentBackoff),
+				)
+
+				errStr := strings.ToLower(err.Error())
+				if strings.Contains(errStr, "unauthenticated") ||
+					strings.Contains(errStr, "permission_denied") ||
+					strings.Contains(errStr, "quotaexceeded") ||
+					strings.Contains(errStr, "resource_exhausted") {
+					y.Logger.Error("Terminal authentication or quota restriction detected. Closing worker thread permanently.")
+					return
+				}
 
 				select {
 				case <-ctx.Done():
@@ -149,7 +155,7 @@ func (y *YouTubeService) ConnectChat(ctx context.Context, videoId string) error 
 				currentBackoff = min(currentBackoff*2, maxBackoff)
 				continue
 			}
-
+			y.Logger.Info("Successfully established live chat gRPC stream pipeline", "videoId", videoId)
 			currentBackoff = baseBackoff
 
 			for {
@@ -160,15 +166,20 @@ func (y *YouTubeService) ConnectChat(ctx context.Context, videoId string) error 
 				chunk, err := stream.Recv()
 				if err != nil {
 					if errors.Is(err, io.EOF) {
-						y.Logger.Debug("gRPC stream idle timeout (EOF). Re-establishing pipe...")
+						y.Logger.Debug("Stream reached 60s idle limit. Refreshing connection context smoothly...")
+						currentBackoff = 0
 					} else {
-						y.Logger.Error("Stream disconnected unexpectedly", "error", err)
+						y.Logger.Error("Real network drop or rate limit encountered", "error", err)
+						currentBackoff = baseBackoff
 					}
 					break
 				}
 
 				if token := chunk.GetNextPageToken(); token != "" {
-					nextPageToken = token
+					if token != nextPageToken {
+						y.Logger.Info("Updated internal stream page cursor bounds", "videoId", videoId)
+						nextPageToken = token
+					}
 				}
 
 				items := chunk.GetItems()
@@ -220,7 +231,7 @@ func (y *YouTubeService) GetProfile(ctx context.Context) (*models.UserProfile, e
 		return nil, errors.New("unauthenticated client context")
 	}
 
-	call := y.apiService.Channels.List([]string{"snippet"}).Mine(true)
+	call := y.apiService.Channels.List([]string{"snippet", "id"}).Mine(true)
 	response, err := call.Context(ctx).Do()
 	if err != nil {
 		return nil, err
@@ -231,9 +242,16 @@ func (y *YouTubeService) GetProfile(ctx context.Context) (*models.UserProfile, e
 	}
 
 	channel := response.Items[0]
+
+	y.Logger.Info("YouTube channel data successfully retrieved and parsed",
+		slog.String("channel_id", channel.Id),
+	)
+
 	return &models.UserProfile{
 		DisplayName: channel.Snippet.Title,
 		AvatarURL:   channel.Snippet.Thumbnails.Default.Url,
+		ChannelID:   channel.Id,
+		Handle:      channel.Snippet.CustomUrl,
 	}, nil
 }
 

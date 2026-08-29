@@ -19,11 +19,7 @@ export function CreateScopedHostObject(vm: goja$0.Runtime | null, pluginName: st
     return $Call.ByID(3821519586, vm, pluginName, permissions);
 }
 
-export function GetDynamicPluginDefinitions(): $CancellablePromise<string> {
-    return $Call.ByID(2905684001);
-}
-
-export function GetMonacoEnvironment(topic: string): $CancellablePromise<string> {
+export function GetMonacoEnvironment(topic: models$0.EventKey): $CancellablePromise<string> {
     return $Call.ByID(1463871715, topic);
 }
 

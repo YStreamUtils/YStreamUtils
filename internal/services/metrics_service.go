@@ -3,21 +3,23 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/ystreamutils/YStreamUtils/internal/ports"
+	"github.com/ystreamutils/YStreamUtils/internal/utils"
 )
 
 type MetricsService struct {
-	BaseService
+	Logger  *slog.Logger
 	mu      sync.RWMutex
 	drivers map[string]ports.StreamMetricsDriver
 }
 
 func NewMetricsService() *MetricsService {
 	return &MetricsService{
-		BaseService: NewBaseService("MetricsService"),
-		drivers:     make(map[string]ports.StreamMetricsDriver),
+		Logger:  utils.NewServiceLogger("MetricsService"),
+		drivers: make(map[string]ports.StreamMetricsDriver),
 	}
 }
 

@@ -1,11 +1,11 @@
 import {
   Platform,
   type UserProfile,
-} from "../../bindings/github.com/ystreamutils/YStreamUtils/internal/models";
+} from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/models";
 import {
   GetProfile,
   LoginPlatform,
-} from "../../bindings/github.com/ystreamutils/YStreamUtils/internal/services/authservice";
+} from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/services/authservice";
 
 export const profiles = $state<Partial<Record<Platform, UserProfile | null>>>(
   {},

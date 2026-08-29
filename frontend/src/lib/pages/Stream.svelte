@@ -1,14 +1,10 @@
 <script lang="ts">
   import { Events } from "@wailsio/runtime";
   import { onMount, tick } from "svelte";
-  import { platforms, profiles } from "../auth.svelte";
-  import {
-    GetActiveBroadcastVideoIDs,
-    FetchConcurrentViewers,
-  } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/services/metricsservice";
-  import { StartChatStream } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/services/chatservice";
-    import { streamState } from "../streamState.svelte";
-    import { EventKey, Platform } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/models";
+  import { EventKey } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/models";
+  import Card from "../components/Card.svelte";
+  import Button from "../components/Button.svelte";
+  import { initializeDashboard, refreshAllMetrics, streamState } from "../state/streamState.svelte";
 
   let scrollContainer: HTMLDivElement;
 
@@ -23,51 +19,59 @@
       }
     });
   });
+
+  $effect(() => {
+    console.log($state.snapshot(streamState));
+  });
 </script>
 
 <div class="stream-grid">
-  <!-- Left Column: Unified Custom Live Chat Feed -->
-  <div class="grid-left chat-column">
-    <div class="chat-header">Chat</div>
+  <div class="chat-column">
+    <Card>
+      <div class="chat-header">Chat</div>
 
-    <div class="chat-viewport" bind:this={scrollContainer}>
-      {#each streamState.messages as msg}
-        <div class="chat-row">
-          <span class="chat-author">{msg.author}:</span>
-          <span class="chat-text">{msg.message}</span>
-        </div>
-      {/each}
-    </div>
+      <div class="chat-viewport" bind:this={scrollContainer}>
+        {#each streamState.messages as msg}
+          <div class="chat-row">
+            <span class="chat-author" style="color: {msg.authorColor};">{msg.author}:</span>
+            <span class="chat-text">{msg.message}</span>
+          </div>
+        {/each}
+      </div>
+    </Card>
   </div>
 
-  <!-- Right Column: Container displaying an embed player for each active stream item -->
   <div class="grid-right player-column">
+    <Button onclick={initializeDashboard}>Refresh Streams</Button>
+    <Button onclick={refreshAllMetrics}>Refresh Metrics</Button>
     {#each Object.entries(streamState.activeStreamVideoIds) as [videoId, platform]}
       <div class="player-card">
-        {@render youtubeIframe(videoId)}
-        
-        <div class="player-footer">
-          Live Stream ID: {videoId}
-          <span class="footer-viewers">
-            👁️ {streamState.concurrentViewersMap[videoId] ?? 0} viewers
-          </span>
-        </div>
+        <Card>
+          {@render youtubeIframe(videoId)}
+
+          <div class="player-footer">
+            Live Stream ID: {videoId}
+            <span class="footer-viewers">
+              👁️ {streamState.concurrentViewersMap[videoId] ?? 0} viewers
+            </span>
+          </div>
+        </Card>
       </div>
     {/each}
   </div>
 </div>
 
 {#snippet youtubeIframe(videoId: string)}
-<iframe
-  title="Youtube Stream - {videoId}"
-  src="https://youtube.com/embed/{videoId}?autoplay=1&mute=1&controls=0"
-  width="100%"
-  height="450px"
-  frameborder="0"
-  allow="autoplay; encrypted-media; picture-in-picture"
-  referrerpolicy="strict-origin-when-cross-origin"
-  allowfullscreen
-  class="player-frame"></iframe>
+  <iframe
+    title="Youtube Stream - {videoId}"
+    src="https://youtube.com/embed/{videoId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0"
+    width="100%"
+    frameborder="0"
+    allow="autoplay; encrypted-media; picture-in-picture"
+    referrerpolicy="strict-origin-when-cross-origin"
+    allowfullscreen
+    class="player-frame"
+  ></iframe>
 {/snippet}
 
 <style>
@@ -80,17 +84,8 @@
     border-radius: var(--space-4);
   }
 
-  .grid-left {
-    background: var(--neutral-800-tint);
-  }
-
-  .grid-right {
-    background: var(--neutral-800);
-  }
-
   .chat-column {
-    display: flex;
-    flex-direction: column;
+    display: grid;
     height: 100%;
     overflow: hidden;
   }
@@ -137,6 +132,11 @@
     overflow: hidden;
     background: var(--neutral-900, #111);
     border-radius: 4px;
+  }
+
+  .player-frame {
+    aspect-ratio: calc(16 / 9);
+    margin-top: var(--space-2);
   }
 
   .player-footer {

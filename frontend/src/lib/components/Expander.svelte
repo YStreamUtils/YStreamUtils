@@ -101,7 +101,7 @@
   }
 
   :global(.collapsible-content[data-state="open"]) {
-    height: var(--bits-collapsible-content-height);
+    height: fit-content;
   }
 
   :global(.collapsible-content[data-state="closed"]) {

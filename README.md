@@ -2,9 +2,9 @@
 
 ## The Stream Companion You Didn't Ask For
 
-I keep bouncing around between C# and go, but I have decided to eat the WASM bullet for breakfast.
+I keep bouncing around between C# and go, but I have decided to just use Javascript.
 
-I only use clankers for research, I know my WASM implementation is bad... make a PR idk.
+I only use clankers for research, I know my implementation is bad... make a PR idk.
 
 Many of the concepts for caching and compiling I took from [My Other Project](https://github.com/ysnt-yes/YScriptEngine).
 
@@ -25,13 +25,14 @@ const logger = GetService("Logger")
 
 ### [Current Roadmap](TODO.md)
 
-### [Plugin Repo: Coming Soon!](TODO.md/#plugins)
+### [Plugin Repo](https://github.com/YStreamUtils/YStreamUtils-Plugin-Registry)
 
 For those who care... THE STACK!
 
 - Wails v3
 - Go (latest)
-- Wazero (WASM)
+- Goja (js)
+- ESBuild (for ts -> js and compiling plugins)
 - Svelte 5 (not kit, just a SPA I guess?)
 
-<style>h1,h2,h3,h4 { border-bottom: 0; } </style>
+<!-- <style>h1,h2,h3,h4 { border-bottom: 0; } </style> -->

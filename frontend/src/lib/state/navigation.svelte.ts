@@ -1,9 +1,9 @@
 import type { Component } from "svelte";
-import Home from "./pages/Home.svelte";
-import Settings from "./pages/Settings.svelte";
-import Stream from "./pages/Stream.svelte";
-import Script from "./pages/Script.svelte";
-import Plugins from "./pages/Plugins.svelte";
+import Home from "../pages/Home.svelte";
+import Settings from "../pages/Settings.svelte";
+import Stream from "../pages/Stream.svelte";
+import Script from "../pages/Script.svelte";
+import Plugins from "../pages/Plugins.svelte";
 
 export const pages: Record<string, Component> = {
   home: Home,

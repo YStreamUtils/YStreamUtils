@@ -6,9 +6,9 @@
 		"0000": {
 			"ProductVersion": "0.1.0",
 			"CompanyName": "YSNT",
-			"FileDescription": "A YStreamUtils application",
-			"LegalCopyright": "© 2026, YSNT",
-			"ProductName": "My Product",
+			"FileDescription": "One of the stream companions of all time",
+			"LegalCopyright": "(c) 2026, YSNT",
+			"ProductName": "YStreamUtils",
 			"Comments": "This is a comment"
 		}
 	}

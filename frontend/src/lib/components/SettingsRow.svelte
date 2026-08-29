@@ -15,8 +15,9 @@
     <span class="title">{title}</span>
     <span class="description">{description}</span>
   </div>
-
-  {@render children()}
+  <div class="setting-content">
+    {@render children()}
+  </div>
 </div>
 
 <style>
@@ -28,6 +29,10 @@
     width: 100%;
     font-size: 0.875rem;
     color: var(--color-text);
+  }
+
+  .setting-content {
+    justify-content: flex-end;
   }
 
   .text-group {

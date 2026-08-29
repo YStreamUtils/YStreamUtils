@@ -12,16 +12,28 @@ import * as models$0 from "../models/models.js";
 // @ts-ignore: Unused imports
 import * as oauth2$0 from "../../../../../golang.org/x/oauth2/models.js";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
+
 export function DeleteSession(platform: models$0.Platform): $CancellablePromise<void> {
     return $Call.ByID(1853837492, platform);
 }
 
-export function GetSession(platform: models$0.Platform): $CancellablePromise<oauth2$0.Token | null> {
-    return $Call.ByID(659972679, platform);
+export function GetConfig(platform: models$0.Platform): $CancellablePromise<oauth2$0.Config | null> {
+    return $Call.ByID(4212212247, platform);
+}
+
+export function GetTokenSource(platform: models$0.Platform): $CancellablePromise<oauth2$0.TokenSource> {
+    return $Call.ByID(2190631775, platform);
 }
 
 export function GetValidSession(platform: models$0.Platform): $CancellablePromise<oauth2$0.Token | null> {
     return $Call.ByID(3177895331, platform);
+}
+
+export function StoreConfig(platform: models$0.Platform, cfg: $models.OAuthConfig): $CancellablePromise<void> {
+    return $Call.ByID(776980594, platform, cfg);
 }
 
 export function StoreSession(platform: models$0.Platform, token: oauth2$0.Token | null): $CancellablePromise<void> {

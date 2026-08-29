@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Menu, Minus, Square, X } from "@lucide/svelte";
   import { Window } from "@wailsio/runtime";
-  import { sidebar } from "../navigation.svelte";
+  import { sidebar } from "../state/navigation.svelte";
 
   const { onMenuClicked } = $props<{ onMenuClicked: () => void }>();
 </script>
@@ -19,22 +19,13 @@
     <p>YStream<span>Utils</span></p>
   </div>
   <div class="controls">
-    <button
-      class="btn btn-center btn-system btn-minimize"
-      onclick={() => Window.Minimise()}
-    >
+    <button class="btn btn-center btn-system btn-minimize" onclick={() => Window.Minimise()}>
       <Minus size={16} />
     </button>
-    <button
-      class="btn btn-center btn-system btn-maximize"
-      onclick={() => Window.ToggleMaximise()}
-    >
+    <button class="btn btn-center btn-system btn-maximize" onclick={() => Window.ToggleMaximise()}>
       <Square size={16} />
     </button>
-    <button
-      class="btn btn-center btn-system btn-close"
-      onclick={() => Window.Close()}
-    >
+    <button class="btn btn-center btn-system btn-close" onclick={() => Window.Close()}>
       <X size={16} />
     </button>
   </div>

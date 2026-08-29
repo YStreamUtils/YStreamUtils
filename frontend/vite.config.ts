@@ -1,12 +1,25 @@
-import { defineConfig } from "vite";
-import { svelte } from "@sveltejs/vite-plugin-svelte";
-import wails from "@wailsio/runtime/plugins/vite";
+import { defineConfig } from 'vite';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
+import wails from '@wailsio/runtime/plugins/vite';
+import path from 'path';
+
+const srcDir = path.resolve(__dirname, './src');
+const libDir = path.resolve(srcDir, './lib');
+
+const bindingsDir = path.resolve(__dirname, './bindings');
+
 // https://vitejs.dev/config/
 export default defineConfig({
   server: {
-    host: "127.0.0.1",
+    host: '127.0.0.1',
     port: Number(process.env.WAILS_VITE_PORT) || 9245,
-    strictPort: true,
+    strictPort: true
   },
-  plugins: [svelte(), wails("./bindings")],
+  plugins: [svelte(), wails('./bindings')],
+  resolve: {
+    alias: {
+      $lib: libDir,
+      $bindings: bindingsDir
+    }
+  }
 });

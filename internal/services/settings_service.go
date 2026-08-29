@@ -1,11 +1,13 @@
 package services
 
 import (
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
+	"github.com/ystreamutils/YStreamUtils/internal/utils"
 )
 
 type Settings struct {
@@ -37,14 +39,14 @@ var DefaultSettings = Settings{
 }
 
 type SettingsService struct {
-	BaseService
+	Logger       *slog.Logger
 	settingsPath string
 	Settings     *Settings
 }
 
 func NewSettingsService(settingsPath string) *SettingsService {
 	s := &SettingsService{
-		BaseService:  NewBaseService("SettingsService"),
+		Logger:       utils.NewServiceLogger("SettingsService"),
 		settingsPath: path.Join(settingsPath, "settings.toml"),
 		Settings:     &Settings{},
 	}
