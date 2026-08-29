@@ -62,6 +62,8 @@ func setupServices() []application.Service {
 
 	scriptsService := services.NewScriptsService(ctx, pluginService, youtubeService, vaultService, hostTypes)
 
+	scriptLoader := services.NewScriptLoader(scriptsService, userConfigDir)
+
 	return []application.Service{
 		application.NewService(vaultService),
 		application.NewService(authService),
@@ -71,6 +73,7 @@ func setupServices() []application.Service {
 		application.NewService(pluginService),
 		application.NewService(scriptsService),
 		application.NewService(settingsService),
+		application.NewService(scriptLoader),
 	}
 }
 

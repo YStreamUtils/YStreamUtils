@@ -1,5 +1,6 @@
 <script lang="ts">
   import { EventKey } from '$bindings/github.com/ystreamutils/YStreamUtils/internal/models';
+  import { SaveScript } from '$bindings/github.com/ystreamutils/YStreamUtils/internal/services/scriptloader';
   import { RegisterScriptAndBindToBus } from '$bindings/github.com/ystreamutils/YStreamUtils/internal/services/scriptsservice';
   import Button from '$lib/components/Button.svelte';
   import Card from '$lib/components/Card.svelte';
@@ -9,12 +10,17 @@
   import { Check, Save } from '@lucide/svelte';
   import { Events } from '@wailsio/runtime';
 
-  let currentScript = $state('test_script');
+  let currentScript = $state(Object.keys(scriptState)[0]);
   let currentState = $derived(scriptState[currentScript]);
   function createScript() {
     const name = crypto.randomUUID().substring(0, 12);
     scriptState[name] = structuredClone(defaultScriptState);
     currentScript = name;
+  }
+
+  async function handleSave() {
+    await SaveScript(currentScript, currentState.scriptSource, currentState.boundEvent);
+    await RegisterScriptAndBindToBus(currentState.boundEvent, currentScript, currentState.scriptSource);
   }
 </script>
 
@@ -44,13 +50,7 @@
             </option>
           {/each}
         </Select>
-        <Button
-          color="success"
-          icon={Save}
-          onclick={async () =>
-            await RegisterScriptAndBindToBus(currentState.boundEvent, currentScript, currentState.scriptSource)}
-          >Save</Button
-        >
+        <Button color="success" icon={Save} onclick={handleSave}>Save</Button>
         <Button color="warning" icon={Check} onclick={() => Events.Emit(EventKey.EventKeyManualInvoke)}>Test</Button>
       </div>
       <MonacoEditor bind:userScript={currentState.scriptSource} currentKey={currentState.boundEvent} />

@@ -4,6 +4,9 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as types$0 from "../../../YStreamUtils-Plugin-Registry/ci/types/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as models$0 from "../models/models.js";
 
 export interface OAuthConfig {
     "client_id": string;
@@ -18,6 +21,15 @@ export interface Plugin {
 
 export interface PluginSettings {
     "Repositories": string[] | null;
+}
+
+export interface Script {
+    "eventKey": models$0.EventKey;
+
+    /**
+     * Contains the filename (e.g., "abc.js")
+     */
+    "source": string;
 }
 
 export interface Settings {

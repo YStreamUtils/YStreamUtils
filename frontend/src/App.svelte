@@ -9,6 +9,7 @@
   import { loadAllProfiles } from '$lib/state/auth.svelte';
   import { initSettings, appState } from '$lib/state/settings.svelte';
   import { InitStreamState } from '$lib/state/streamState.svelte';
+  import { InitScriptState } from '$lib/state/scriptState.svelte';
 
   let ActiveScreen = $derived(pages[router.current]);
   $effect(() => {
@@ -23,6 +24,7 @@
     await initSettings();
     await loadAllProfiles();
     await InitStreamState();
+    await InitScriptState();
   });
 
   $effect(() => {

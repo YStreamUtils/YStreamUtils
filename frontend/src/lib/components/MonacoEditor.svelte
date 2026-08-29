@@ -6,14 +6,8 @@
   import { shikiToMonaco } from '@shikijs/monaco';
 
   import type { editor, IDisposable } from 'monaco-editor';
-  import {
-    GetMonacoEnvironment,
-    RegisterScriptAndBindToBus
-  } from '../../../bindings/github.com/ystreamutils/YStreamUtils/internal/services/scriptsservice';
-  import { EventKey } from '../../../bindings/github.com/ystreamutils/YStreamUtils/internal/models';
-  import { Events } from '@wailsio/runtime';
-  import Button from './Button.svelte';
-  import { Check, Save } from '@lucide/svelte';
+  import { EventKey } from '$bindings/github.com/ystreamutils/YStreamUtils/internal/models';
+  import { GetMonacoEnvironment } from '$bindings/github.com/ystreamutils/YStreamUtils/internal/services/scriptsservice';
 
   loader.config({ monaco: monacoCore });
 

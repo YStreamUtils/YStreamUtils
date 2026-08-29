@@ -16,9 +16,8 @@ import (
 )
 
 type Script struct {
-	Name   string `json:"name"`
-	Event  string `json:"eventKey"`
-	Source string `json:"source"`
+	Event  models.EventKey `json:"eventKey"`
+	Source string          `json:"source"` // Contains the filename (e.g., "abc.js")
 }
 
 type ScriptLoader struct {
@@ -26,18 +25,19 @@ type ScriptLoader struct {
 	mu              sync.RWMutex
 	scriptService   *ScriptsService
 	scriptsLocation string
-	manifest        []*Script
+	manifest        map[string]*Script
 }
 
 func NewScriptLoader(scriptService *ScriptsService, location string) *ScriptLoader {
+	scriptPath := filepath.Join(location, "scripts")
 	loader := &ScriptLoader{
 		Logger:          utils.NewServiceLogger("ScriptsService"),
 		scriptService:   scriptService,
-		scriptsLocation: location,
-		manifest:        []*Script{},
+		scriptsLocation: scriptPath,
+		manifest:        make(map[string]*Script),
 	}
 
-	if err := os.MkdirAll(location, 0755); err != nil {
+	if err := os.MkdirAll(loader.scriptsLocation, 0755); err != nil {
 		loader.Logger.Error("Failed initializing scripts directory tree", "err", err)
 	} else {
 		_ = loader.loadManifest()
@@ -46,7 +46,7 @@ func NewScriptLoader(scriptService *ScriptsService, location string) *ScriptLoad
 	return loader
 }
 
-func (sl *ScriptLoader) SaveScript(scriptId string, source string, event string) error {
+func (sl *ScriptLoader) SaveScript(scriptId string, source string, event models.EventKey) error {
 	sl.mu.Lock()
 	defer sl.mu.Unlock()
 
@@ -56,23 +56,15 @@ func (sl *ScriptLoader) SaveScript(scriptId string, source string, event string)
 		return fmt.Errorf("failed to save script source file to disk: %w", err)
 	}
 
-	var existingScript *Script
-	for _, s := range sl.manifest {
-		if s.Name == scriptId {
-			existingScript = s
-			break
-		}
-	}
-
-	if existingScript != nil {
-		existingScript.Event = event
-		existingScript.Source = fileName
+	script, exists := sl.manifest[scriptId]
+	if exists {
+		script.Event = event
+		script.Source = fileName
 	} else {
-		sl.manifest = append(sl.manifest, &Script{
-			Name:   scriptId,
+		sl.manifest[scriptId] = &Script{
 			Event:  event,
 			Source: fileName,
-		})
+		}
 	}
 
 	if err := sl.saveManifest(); err != nil {
@@ -86,28 +78,23 @@ func (sl *ScriptLoader) SaveScript(scriptId string, source string, event string)
 func (sl *ScriptLoader) LoadScript(scriptId string) (*Script, error) {
 	sl.mu.RLock()
 	defer sl.mu.RUnlock()
+	return sl.loadScriptUnlocked(scriptId)
+}
 
-	var match *Script
-	for _, s := range sl.manifest {
-		if s.Name == scriptId {
-			match = s
-			break
-		}
-	}
-
-	if match == nil {
+func (sl *ScriptLoader) loadScriptUnlocked(scriptId string) (*Script, error) {
+	script, exists := sl.manifest[scriptId]
+	if !exists {
 		return nil, errors.New("script entry metadata row not found in current manifest mapping matrix")
 	}
 
-	filePath := filepath.Join(sl.scriptsLocation, match.Source)
+	filePath := filepath.Join(sl.scriptsLocation, script.Source)
 	sourceBytes, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed reading script source code string asset matching disk path: %w", err)
 	}
 
 	return &Script{
-		Name:   match.Name,
-		Event:  match.Event,
+		Event:  script.Event,
 		Source: string(sourceBytes),
 	}, nil
 }
@@ -144,29 +131,54 @@ func (sl *ScriptLoader) ServiceStartup(ctx context.Context, options application.
 
 	sl.Logger.Info("Initializing ScriptLoader startup lifecycle", "total_scripts", len(sl.manifest))
 
-	for _, s := range sl.manifest {
-		scriptText, err := sl.LoadScript(s.Name)
+	for name, s := range sl.manifest {
+		scriptText, err := sl.loadScriptUnlocked(name)
 		if err != nil {
 			sl.Logger.Error("Skipping startup script activation: source file missing or corrupt",
-				slog.String("scriptId", s.Name),
+				slog.String("scriptId", name),
 				slog.Any("error", err),
 			)
 			continue
 		}
 
-		if err := sl.scriptService.RegisterScriptAndBindToBus(models.EventKey(scriptText.Event), scriptText.Name, scriptText.Source); err != nil {
+		if err := sl.scriptService.RegisterScriptAndBindToBus(models.EventKey(scriptText.Event), name, scriptText.Source); err != nil {
 			sl.Logger.Error("Failed to bind script to Wails event bus",
-				slog.String("scriptId", s.Name),
+				slog.String("scriptId", name),
 				slog.Any("error", err),
 			)
 			continue
 		}
 
 		sl.Logger.Info("Successfully registered script and bound to event bus via startup",
-			slog.String("scriptId", s.Name),
-			slog.String("eventKey", s.Event),
+			slog.String("scriptId", name),
+			slog.String("eventKey", string(s.Event)),
 		)
 	}
 
 	return nil
+}
+
+func (sl *ScriptLoader) GetManifest() map[string]*Script {
+	sl.mu.RLock()
+	defer sl.mu.RUnlock()
+
+	copiedManifest := make(map[string]*Script, len(sl.manifest))
+	for k, v := range sl.manifest {
+		filePath := filepath.Join(sl.scriptsLocation, v.Source)
+		sourceBytes, err := os.ReadFile(filePath)
+
+		var sourceContent string
+		if err != nil {
+			sl.Logger.Error("Failed reading script source asset for manifest transfer", "scriptId", k, "err", err)
+			sourceContent = fmt.Sprintf("// Error loading script source file: %v", err)
+		} else {
+			sourceContent = string(sourceBytes)
+		}
+
+		copiedManifest[k] = &Script{
+			Event:  v.Event,
+			Source: sourceContent,
+		}
+	}
+	return copiedManifest
 }

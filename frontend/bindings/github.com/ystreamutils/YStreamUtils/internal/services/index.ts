@@ -5,6 +5,7 @@ import * as AuthService from "./authservice.js";
 import * as ChatService from "./chatservice.js";
 import * as MetricsService from "./metricsservice.js";
 import * as PluginService from "./pluginservice.js";
+import * as ScriptLoader from "./scriptloader.js";
 import * as ScriptsService from "./scriptsservice.js";
 import * as SettingsService from "./settingsservice.js";
 import * as TokenVault from "./tokenvault.js";
@@ -14,6 +15,7 @@ export {
     ChatService,
     MetricsService,
     PluginService,
+    ScriptLoader,
     ScriptsService,
     SettingsService,
     TokenVault,
@@ -24,6 +26,7 @@ export type {
     OAuthConfig,
     Plugin,
     PluginSettings,
+    Script,
     Settings,
     UISettings
 } from "./models.js";

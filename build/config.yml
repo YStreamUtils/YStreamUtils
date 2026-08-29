@@ -11,7 +11,7 @@ info:
   description: "One of the stream companions of all time" # The application description
   copyright: "(c) 2026, YSNT" # Copyright text
   comments: "" # Comments
-  version: "0.1.0" # The application version
+  version: "0.2.0" # The application version
 
 windows:
   amd64:
