@@ -1,44 +1,55 @@
-import { EventKey } from '$bindings/github.com/ystreamutils/YStreamUtils/internal/models';
-import type { Script } from '$bindings/github.com/ystreamutils/YStreamUtils/internal/services';
-import { GetManifest } from '$bindings/github.com/ystreamutils/YStreamUtils/internal/services/scriptloader';
+import { EventKey, type ScriptRecord } from '$bindings/github.com/ystreamutils/YStreamUtils/internal/models';
+import { FindAllScripts } from '$bindings/github.com/ystreamutils/YStreamUtils/internal/services/databaseservice';
+import { getContext, onMount, setContext } from 'svelte';
 
-type ScriptState = {
-  scriptSource: string;
-  boundEvent: EventKey;
-  isEnabled: boolean;
-};
+export interface Script {
+  source: string;
+  event: EventKey;
+}
+export class ScriptState {
+  scripts = $state<Record<string, Script>>({
+    default_script: this.defaultScriptState()
+  });
 
-export const defaultScriptState: ScriptState = {
-  scriptSource: '// Try typing "eventData." or "plugins." here!\n\nhost.log("info", "Hello from Goja!");\n',
-  boundEvent: EventKey.EventKeyManualInvoke,
-  isEnabled: true
-};
+  static filteredEvents = Object.entries(EventKey).filter(([, userScript]) => userScript !== EventKey.$zero) as [
+    keyof typeof EventKey,
+    EventKey
+  ][];
 
-export const scriptState = $state<Record<string, ScriptState>>({
-  test_script: defaultScriptState
-});
+  constructor() {
+    onMount(async () => {
+      const loaded = await FindAllScripts();
+      console.log(loaded);
 
-export const filteredEvents = Object.entries(EventKey).filter((entry): entry is [keyof typeof EventKey, EventKey] => {
-  const [_, userScript] = entry;
-  return userScript !== EventKey.$zero;
-});
+      if (loaded == null || Object.keys(loaded).length === 0) {
+        return;
+      }
+      delete this.scripts['test_script'];
+      for (const value of Object.values(loaded)) {
+        if (value == null) continue;
 
-export async function InitScriptState(): Promise<void> {
-  const scripts = await GetManifest();
-  console.log(scripts);
-
-  if (scripts == null || Object.keys(scripts).length === 0) {
-    return;
+        this.scripts[value.ID] = {
+          source: value.SourceCode,
+          event: value.EventKey
+        };
+      }
+    });
   }
-  delete scriptState['test_script'];
-  for (const [name, value] of Object.entries(scripts)) {
-    if (value == null) continue;
 
-    console.log(value);
-    scriptState[name] = {
-      scriptSource: value.source,
-      boundEvent: value.eventKey,
-      isEnabled: true
+  defaultScriptState(): Script {
+    return {
+      source: '// Try typing "eventData." or "plugins." here!\n\nhost.log("info", "Hello from Goja!");\n',
+      event: EventKey.EventKeyManualInvoke
     };
   }
+}
+
+const SCRIPT_KEY = Symbol('SCRIPT');
+
+export function setScriptState(): ScriptState {
+  return setContext(SCRIPT_KEY, new ScriptState());
+}
+
+export function getScriptState(): ReturnType<typeof setScriptState> {
+  return getContext(SCRIPT_KEY);
 }

@@ -27,6 +27,13 @@ export enum Platform {
     PlatformKick = "kick",
 };
 
+export interface ScriptRecord {
+    "ID": string;
+    "EventKey": EventKey;
+    "SourceCode": string;
+    "UpdatedAt": string;
+}
+
 export interface UserProfile {
     "displayName": string;
     "avatarUrl": string;

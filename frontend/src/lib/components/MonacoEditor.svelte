@@ -33,7 +33,6 @@
     if (!monacoInstance) return;
     try {
       const tsDefinitions = await GetMonacoEnvironment(currentKey);
-      console.log(tsDefinitions);
 
       if (extraLibsDisposable) {
         extraLibsDisposable.dispose();

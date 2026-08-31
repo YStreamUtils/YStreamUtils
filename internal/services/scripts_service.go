@@ -44,6 +44,12 @@ type ScriptsService struct {
 	caches map[string]*bridges.CacheBridge
 }
 
+var typeRegistry = map[models.EventKey]any{
+	models.EventKeyStreamChatMessage: models.StreamEventEnvelope[models.StreamChatMessageEvent]{},
+	models.EventKeyYoutubeSuperchat:  models.StreamEventEnvelope[models.StreamSuperchatMessageEvent]{},
+	models.EventKeyManualInvoke:      models.StreamEventEnvelope[EmptyStruct]{},
+}
+
 func NewScriptsService(ctx context.Context, plugins *PluginService, youtubeService *YouTubeService, vault *TokenVault, hostTypes string) *ScriptsService {
 	return &ScriptsService{
 		Logger:         utils.NewServiceLogger("ScriptsService"),
@@ -53,7 +59,7 @@ func NewScriptsService(ctx context.Context, plugins *PluginService, youtubeServi
 		vault:          vault,
 		hostTypes:      hostTypes,
 		cachedScripts:  make(map[string]*CompiledScript),
-		typeRegistry:   make(map[models.EventKey]any),
+		typeRegistry:   typeRegistry,
 		caches:         make(map[string]*bridges.CacheBridge),
 	}
 }
@@ -267,10 +273,6 @@ declare const eventData: %s;
 }
 
 func (ss *ScriptsService) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
-	ss.typeRegistry[models.EventKeyStreamChatMessage] = models.StreamEventEnvelope[models.StreamChatMessageEvent]{}
-	ss.typeRegistry[models.EventKeyYoutubeSuperchat] = models.StreamEventEnvelope[models.StreamSuperchatMessageEvent]{}
-	ss.typeRegistry[models.EventKeyManualInvoke] = models.StreamEventEnvelope[EmptyStruct]{}
-
 	_ = ss.InitializeVMPool()
 
 	ss.pluginService.StartDevPluginWatcher(func() {

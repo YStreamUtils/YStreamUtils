@@ -7,5 +7,6 @@ export {
 } from "./models.js";
 
 export type {
+    ScriptRecord,
     UserProfile
 } from "./models.js";

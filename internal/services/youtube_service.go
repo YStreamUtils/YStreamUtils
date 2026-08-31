@@ -16,8 +16,10 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/oauth"
+	"google.golang.org/grpc/status"
 )
 
 type YouTubeService struct {
@@ -116,8 +118,8 @@ func (y *YouTubeService) ConnectChat(ctx context.Context, videoId string) error 
 		defer conn.Close()
 		var nextPageToken string
 
-		baseBackoff := 1 * time.Second
-		maxBackoff := 30 * time.Second
+		baseBackoff := 5 * time.Second
+		maxBackoff := 60 * time.Second
 		currentBackoff := baseBackoff
 
 		event := application.Get().Event
@@ -129,6 +131,7 @@ func (y *YouTubeService) ConnectChat(ctx context.Context, videoId string) error 
 			}
 			if nextPageToken != "" {
 				req.PageToken = &nextPageToken
+				y.Logger.Info("Next page token providing, reusing same connection")
 			}
 
 			stream, err := client.StreamList(ctx, req)
@@ -169,6 +172,20 @@ func (y *YouTubeService) ConnectChat(ctx context.Context, videoId string) error 
 						y.Logger.Debug("Stream reached 60s idle limit. Refreshing connection context smoothly...")
 						currentBackoff = 0
 					} else {
+						if st, ok := status.FromError(err); ok {
+							if st.Code() == codes.FailedPrecondition ||
+								st.Code() == codes.OutOfRange ||
+								strings.Contains(st.Message(), "liveChatEnded") {
+								y.Logger.Info("Live chat has ended permanently. Exiting worker thread.", "videoId", videoId)
+								return
+							}
+
+							if st.Code() == codes.ResourceExhausted {
+								y.Logger.Error("Quota or rate limit exhausted. Exiting loop.")
+								return
+							}
+						}
+
 						y.Logger.Error("Real network drop or rate limit encountered", "error", err)
 						currentBackoff = baseBackoff
 					}
