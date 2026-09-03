@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
+  import type { Snippet } from 'svelte';
 
   interface Props {
     id: string;
@@ -8,7 +8,7 @@
     content: Snippet<[() => void]>;
   }
 
-  let { id, width = "10rem", trigger, content }: Props = $props();
+  let { id, width = '10rem', trigger, content }: Props = $props();
   let popoverElement: HTMLDivElement;
 
   const close = () => popoverElement?.hidePopover();
@@ -47,7 +47,6 @@
     z-index: 60;
     width: var(--drop-width);
     padding: var(--space-1);
-    margin: 0;
     margin-top: var(--space-1_5);
     position-anchor: var(--anchor-id);
     background-color: light-dark(var(--neutral-050), var(--neutral-900-tint));

@@ -92,6 +92,7 @@ func main() {
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
 	})
+	app.Env.Info().OS
 	wailsHandler := utils.NewLogHandler(os.Stdout, app.Event, userConfigDir)
 	slog.SetDefault(slog.New(wailsHandler))
 

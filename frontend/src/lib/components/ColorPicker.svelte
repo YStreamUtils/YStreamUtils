@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Paintbrush } from "@lucide/svelte";
-  import Button from "./Button.svelte";
+  import Button from "$lib/components/base/Button.svelte";
 
   interface Props {
     value?: string;

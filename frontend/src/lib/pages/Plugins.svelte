@@ -7,8 +7,8 @@
     GetActivePlugins
   } from '../../../bindings/github.com/ystreamutils/YStreamUtils/internal/services/pluginservice';
   import { type PluginManifest } from '../../../bindings/github.com/ystreamutils/YStreamUtils-Plugin-Registry/ci/types';
-  import Card from '../components/Card.svelte';
-  import Button from '../components/Button.svelte';
+  import Card from '../components/base/Card.svelte';
+  import Button from '../components/base/Button.svelte';
 
   let plugins = $state<PluginManifest[] | null>([]);
   let selectedPlugin = $state<PluginManifest | null>(null);

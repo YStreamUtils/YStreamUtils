@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Button from "./Button.svelte";
+  import Button from "$lib/components/base/Button.svelte";
   import { House, Tv, Settings, FileTerminal, Component, Home, Puzzle } from "@lucide/svelte";
   import { navigateTo, router, sidebar, pages } from "../state/navigation.svelte";
 </script>

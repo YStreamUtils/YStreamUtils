@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Expander from "../components/Expander.svelte";
+  import Expander from "../components/base/Expander.svelte";
   import ColorPicker from "../components/ColorPicker.svelte";
   import { User, Palette, Form } from "@lucide/svelte";
   import ThemeDropdown from "../components/ThemeDropdown.svelte";
@@ -8,9 +8,9 @@
   import ConnectedAccount from "../components/ConnectedAccount.svelte";
   import * as auth from "../state/auth.svelte";
   import { Platform } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/models";
-  import Card from "../components/Card.svelte";
-  import Input from "../components/Input.svelte";
-  import Button from "../components/Button.svelte";
+  import Card from "../components/base/Card.svelte";
+  import Input from "../components/base/Input.svelte";
+  import Button from "../components/base/Button.svelte";
   import { TokenVault } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/services";
   import { onMount } from "svelte";
 

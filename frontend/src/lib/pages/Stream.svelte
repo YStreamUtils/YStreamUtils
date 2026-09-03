@@ -2,8 +2,8 @@
   import { Events } from "@wailsio/runtime";
   import { onMount, tick } from "svelte";
   import { EventKey } from "../../../bindings/github.com/ystreamutils/YStreamUtils/internal/models";
-  import Card from "../components/Card.svelte";
-  import Button from "../components/Button.svelte";
+  import Card from "../components/base/Card.svelte";
+  import Button from "../components/base/Button.svelte";
   import { initializeDashboard, refreshAllMetrics, streamState } from "../state/streamState.svelte";
 
   let scrollContainer: HTMLDivElement;

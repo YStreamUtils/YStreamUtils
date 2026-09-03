@@ -1,6 +1,6 @@
 <script lang="ts">
-  import Button from "./Button.svelte";
-  import Dropdown from "./Dropdown.svelte";
+  import Button from "./base/Button.svelte";
+  import Dropdown from "./base/Dropdown.svelte";
   import { Monitor, Moon, Sun, ChevronDown } from "@lucide/svelte";
 
   interface Props {
@@ -47,7 +47,6 @@
     {#each themes as theme}
       <Button
         type="button"
-        color="surface"
         variant="transparent"
         fullWidth={true}
         icon={theme.icon}

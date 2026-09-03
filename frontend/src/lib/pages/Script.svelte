@@ -5,10 +5,10 @@
     SaveScript
   } from '$bindings/github.com/ystreamutils/YStreamUtils/internal/services/databaseservice';
   import { RegisterScriptAndBindToBus } from '$bindings/github.com/ystreamutils/YStreamUtils/internal/services/scriptsservice';
-  import Button from '$lib/components/Button.svelte';
-  import Card from '$lib/components/Card.svelte';
+  import Button from '$lib/components/base/Button.svelte';
+  import Card from '$lib/components/base/Card.svelte';
   import MonacoEditor from '$lib/components/MonacoEditor.svelte';
-  import Select from '$lib/components/Select.svelte';
+  import Select from '$lib/components/base/Select.svelte';
   import { getScriptState, ScriptState } from '$lib/state/scriptState.svelte';
   import { Check, Save, Trash } from '@lucide/svelte';
   import { Events } from '@wailsio/runtime';
