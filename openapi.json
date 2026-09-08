@@ -1,0 +1,110 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "YStreamUtils | v1",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/settings": {
+      "get": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Settings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/version": {
+      "get": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "PluginSettings": {
+        "type": "object",
+        "properties": {
+          "repos": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Settings": {
+        "type": "object",
+        "properties": {
+          "ui": {
+            "$ref": "#/components/schemas/UiSettings"
+          },
+          "plugins": {
+            "$ref": "#/components/schemas/PluginSettings"
+          }
+        }
+      },
+      "UiSettings": {
+        "type": "object",
+        "properties": {
+          "theme": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "fullyCloseSidebar": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "YStreamUtils"
+    }
+  ]
+}

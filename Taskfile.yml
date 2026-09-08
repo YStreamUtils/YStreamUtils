@@ -1,0 +1,48 @@
+﻿version: '3'
+
+tasks:
+  build:backend:
+    desc: "Compiles the C# ASP.NET Core backend and extracts the OpenAPI document"
+    cmds:
+      - cd YStreamUtils && dotnet build
+
+  codegen:frontend:
+    desc: "Generates type-safe Svelte TypeScript API clients from OpenAPI spec"
+    deps:
+      - build:backend
+    cmds:
+      - cd frontend && npm run codegen
+  
+  dev:
+    desc: "Builds schema, runs type generation, and boots both live servers in watch mode"
+    deps:
+      - codegen:frontend
+    cmds:
+      - task: start:all
+
+  start:all:
+    internal: true
+    desc: "Spins up watch servers concurrently"
+    deps:
+      - task: start:backend
+      - task: start:frontend
+    cmds:
+      - echo "Launching backend watch server on :5000 and Vite UI proxy on :5173..."
+
+  start:backend:
+    internal: true
+    env:
+      DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER: 'true'
+    cmds:
+      - cd YStreamUtils && dotnet watch run -- --dev
+
+  start:frontend:
+    internal: true
+    cmds:
+      - cd frontend && npm run dev
+
+  build:prod:
+    desc: "Compiles optimized production UI and builds final native .NET desktop binary"
+    cmds:
+      - cd frontend && npm run build
+      - cd YStreamUtils && dotnet publish -c Release
