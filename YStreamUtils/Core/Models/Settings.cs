@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace YStreamUtils.Models;
+namespace YStreamUtils.Core.Models;
 
 public class Settings
 {

@@ -5,7 +5,7 @@ using YStreamUtils.Core.Models;
 namespace YStreamUtils.Core.Entities;
 
 [PrimaryKey(nameof(Platform), nameof(IsBot))]
-public class OAuthTokens
+public class OAuthToken
 {
     [Required]
     [MaxLength(50)]

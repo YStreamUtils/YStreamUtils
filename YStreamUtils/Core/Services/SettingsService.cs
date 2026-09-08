@@ -1,11 +1,10 @@
 ﻿using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using YStreamUtils.Core.Models;
 
-namespace YStreamUtils.Services;
+namespace YStreamUtils.Core.Services;
 
-public partial class SettingsService
+public class SettingsService
 {
     private readonly ILogger<SettingsService> _logger;
     private readonly string _settingsPath;
@@ -21,19 +20,18 @@ public partial class SettingsService
         },
         PluginSettings = new PluginSettings
         {
-            Repositories = ["https://ystreamutils.github.io/YStreamUtils-Plugin-Registry/registry.toml"]
+            Repositories = ["https://ystreamutils.github.io/YStreamUtils-Plugin-Registry/registry.json"]
         }
     };
 
-    public SettingsService(ILogger<SettingsService> logger, string baseDirectoryPath)
+    public SettingsService(ILogger<SettingsService> logger)
     {
         _logger = logger;
-        _settingsPath = Path.Combine(baseDirectoryPath, "settings.json");
-        _settings = new Settings();
+        _settingsPath = Path.Combine(Consts.ApplicationDataFolder, "settings.json");
 
         try
         {
-            LoadSettings();
+            _settings = LoadSettings();
         }
         catch (Exception)
         {
@@ -42,7 +40,7 @@ public partial class SettingsService
         }
     }
 
-    public void LoadSettings()
+    private Settings LoadSettings()
     {
         _logger.LogInformation("Trying to load settings configuration from file system at {Path}", _settingsPath);
 
@@ -53,15 +51,11 @@ public partial class SettingsService
 
         try
         {
-            string jsonContent = File.ReadAllText(_settingsPath);
+            var jsonContent = File.ReadAllText(_settingsPath);
 
-            // 🚀 FIX: Pass the generated static default type metadata context
-            var loadedSettings = JsonSerializer.Deserialize(
-                jsonContent,
-                AppJsonSerializerContext.Default.Settings
-            );
+            var loadedSettings = JsonSerializer.Deserialize<Settings>(jsonContent);
 
-            _settings = loadedSettings ?? DefaultSettings;
+            return loadedSettings ?? DefaultSettings;
         }
         catch (Exception ex)
         {
@@ -80,9 +74,8 @@ public partial class SettingsService
                 Directory.CreateDirectory(directory);
             }
 
-            var options = new JsonSerializerOptions { WriteIndented = true };
-            var context = new AppJsonSerializerContext(options);
-            var jsonContent = JsonSerializer.Serialize(settings, context.Settings);
+            
+            var jsonContent = JsonSerializer.Serialize(settings, Consts.IndentedSerializerOptions);
 
             File.WriteAllText(_settingsPath, jsonContent);
             _settings = settings;
@@ -97,25 +90,5 @@ public partial class SettingsService
     public Settings GetSettings()
     {
         return _settings;
-    }
-}
-
-public static class SettingsServiceEndpointsExtension
-{
-    public static RouteGroupBuilder AddSettingsService(this RouteGroupBuilder groupBuilder)
-    {
-        groupBuilder.MapGet("/settings",
-                ([FromServices] SettingsService settingsService) => { Results.Ok(settingsService.GetSettings()); })
-            .Produces<Settings>()
-            .WithName("GetSettings");
-
-        groupBuilder.MapPost("/settings", (Settings settings, [FromServices] SettingsService settingsService) =>
-            {
-                settingsService.SaveSettings(settings);
-                return Results.Ok(settingsService.GetSettings());
-            })
-            .Produces<Settings>()
-            .WithName("SaveSettings");
-        return groupBuilder;
     }
 }

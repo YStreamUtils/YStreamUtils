@@ -10,9 +10,17 @@
         "tags": [
           "YStreamUtils"
         ],
+        "operationId": "GetSettings",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
           }
         }
       },
@@ -20,6 +28,7 @@
         "tags": [
           "YStreamUtils"
         ],
+        "operationId": "SaveSettings",
         "requestBody": {
           "content": {
             "application/json": {
@@ -32,7 +41,441 @@
         },
         "responses": {
           "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/registry": {
+      "get": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "operationId": "FetchAllRegistryPlugins",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PluginManifest"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/install": {
+      "post": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "operationId": "DownloadAndInstallPlugin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PluginManifest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
             "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/plugins/installed": {
+      "get": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "operationId": "GetInstalledPlugins",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginManifest"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scripts/register": {
+      "post": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "operationId": "RegisterScriptAndBindToBus",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterScriptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/scripts/monaco-env/{topic}": {
+      "get": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "operationId": "GetMonacoEnvironment",
+        "parameters": [
+          {
+            "name": "topic",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/EventKey"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptMetadataResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scripts/{scriptId}": {
+      "get": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "operationId": "GetScriptById",
+        "parameters": [
+          {
+            "name": "scriptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserScript"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "operationId": "DeleteScriptById",
+        "parameters": [
+          {
+            "name": "scriptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/scripts": {
+      "get": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "operationId": "GetAllScripts",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserScript"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scripts/save": {
+      "post": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "operationId": "SaveScript",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserScript"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/script/test/invoke": {
+      "get": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "operationId": "InvokeScriptTest",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/events/invoke": {
+      "post": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "operationId": "InvokeManualEvent",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/events/listen": {
+      "get": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "operationId": "ListenToGlobalEventBusStream",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/auth/config": {
+      "post": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "operationId": "SaveAuthConfig",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthConfigInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "operationId": "HasAuthConfig",
+        "parameters": [
+          {
+            "name": "platform",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Platform"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login/youtube": {
+      "get": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "operationId": "YoutubeLoginUrl",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectUrlResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/callback/youtube": {
+      "get": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/auth/profile": {
+      "get": {
+        "tags": [
+          "YStreamUtils"
+        ],
+        "operationId": "GetProfile",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "platform",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Platform"
+            }
+          },
+          {
+            "name": "isBot",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfile"
+                }
+              }
+            }
           }
         }
       }
@@ -64,6 +507,106 @@
   },
   "components": {
     "schemas": {
+      "ConnectUrlResponse": {
+        "required": [
+          "url"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "DocumentationConfig": {
+        "required": [
+          "description"
+        ],
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "EventKey": {
+        "enum": [
+          "ManualInvoke",
+          "StreamChatMessage",
+          "YoutubeSuperChat",
+          "ApplicationLog"
+        ]
+      },
+      "OAuthConfigInput": {
+        "required": [
+          "tenantId",
+          "platform",
+          "clientId",
+          "clientSecret"
+        ],
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/Platform"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "clientSecret": {
+            "type": "string"
+          }
+        }
+      },
+      "Platform": {
+        "enum": [
+          "YouTube",
+          "Twitch"
+        ]
+      },
+      "PluginManifest": {
+        "required": [
+          "name",
+          "version",
+          "entryPoint",
+          "permissions",
+          "authors",
+          "source",
+          "documentation"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "entryPoint": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "authors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceConfig"
+          },
+          "documentation": {
+            "$ref": "#/components/schemas/DocumentationConfig"
+          }
+        }
+      },
       "PluginSettings": {
         "type": "object",
         "properties": {
@@ -72,6 +615,36 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "RegisterScriptRequest": {
+        "required": [
+          "topic",
+          "scriptId",
+          "rawJsString"
+        ],
+        "type": "object",
+        "properties": {
+          "topic": {
+            "$ref": "#/components/schemas/EventKey"
+          },
+          "scriptId": {
+            "type": "string"
+          },
+          "rawJsString": {
+            "type": "string"
+          }
+        }
+      },
+      "ScriptMetadataResponse": {
+        "required": [
+          "definitions"
+        ],
+        "type": "object",
+        "properties": {
+          "definitions": {
+            "type": "string"
           }
         }
       },
@@ -86,6 +659,21 @@
           }
         }
       },
+      "SourceConfig": {
+        "required": [
+          "repository",
+          "owner"
+        ],
+        "type": "object",
+        "properties": {
+          "repository": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          }
+        }
+      },
       "UiSettings": {
         "type": "object",
         "properties": {
@@ -96,6 +684,46 @@
             "type": "string"
           },
           "fullyCloseSidebar": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UserProfile": {
+        "required": [
+          "displayName",
+          "avatarUrl",
+          "channelId",
+          "handle"
+        ],
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "avatarUrl": {
+            "type": "string"
+          },
+          "channelId": {
+            "type": "string"
+          },
+          "handle": {
+            "type": "string"
+          }
+        }
+      },
+      "UserScript": {
+        "type": "object",
+        "properties": {
+          "scriptId": {
+            "type": "string"
+          },
+          "topic": {
+            "$ref": "#/components/schemas/EventKey"
+          },
+          "rawJsString": {
+            "type": "string"
+          },
+          "isEnabled": {
             "type": "boolean"
           }
         }
