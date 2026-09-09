@@ -14,4 +14,6 @@ public static class Consts
     {
         WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
+    
+    public static readonly bool IsDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
 }

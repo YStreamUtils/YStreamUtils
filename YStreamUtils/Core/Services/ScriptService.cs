@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Acornima.Ast;
 using Jint;
 using Jint.Native;
+using Microsoft.Extensions.Logging;
 using YStreamUtils.Core.Bridges;
 using YStreamUtils.Core.Events;
 using YStreamUtils.Core.Models;

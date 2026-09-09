@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using YStreamUtils.Core.Models;
 
 namespace YStreamUtils.Core.Services;

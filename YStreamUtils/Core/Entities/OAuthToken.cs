@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using YStreamUtils.Core.Models;
 
@@ -16,3 +17,4 @@ public class OAuthToken
     [Required]
     public string TokenJson { get; set; } = string.Empty;
 }
+

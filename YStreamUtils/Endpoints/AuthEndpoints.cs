@@ -5,7 +5,10 @@ using Google.Apis.Auth.OAuth2.Requests;
 using Google.Apis.Auth.OAuth2.Responses;
 using Google.Apis.Util.Store;
 using Google.Apis.YouTube.v3;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using YStreamUtils.Core.Data;
 using YStreamUtils.Core.Entities;
@@ -175,4 +178,10 @@ public static class AuthEndpoints
         
         return builder;
     }
+}
+
+[JsonConverter(typeof(UserProfile))]
+[JsonSerializable(typeof(ConnectUrlResponse))]
+public partial class AuthEndpointJsonContext : JsonSerializerContext
+{
 }

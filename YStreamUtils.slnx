@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="YStreamUtils.Desktop/YStreamUtils.Desktop.csproj" />
+  <Project Path="YStreamUtils.Docker/YStreamUtils.Docker.csproj" />
+  <Project Path="YStreamUtils/YStreamUtils.csproj" />
+</Solution>

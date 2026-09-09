@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using YStreamUtils.Core.Models;
 
 namespace YStreamUtils.Core.Entities;

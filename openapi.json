@@ -1,14 +1,19 @@
 {
   "openapi": "3.1.1",
   "info": {
-    "title": "YStreamUtils | v1",
+    "title": "YStreamUtils.Docker | v1",
     "version": "1.0.0"
   },
+  "servers": [
+    {
+      "url": "http://localhost:5000/"
+    }
+  ],
   "paths": {
     "/api/settings": {
       "get": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "GetSettings",
         "responses": {
@@ -26,7 +31,7 @@
       },
       "post": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "SaveSettings",
         "requestBody": {
@@ -56,7 +61,7 @@
     "/api/plugins/registry": {
       "get": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "FetchAllRegistryPlugins",
         "responses": {
@@ -79,7 +84,7 @@
     "/api/plugins/install": {
       "post": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "DownloadAndInstallPlugin",
         "requestBody": {
@@ -102,7 +107,7 @@
     "/api/plugins/installed": {
       "get": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "GetInstalledPlugins",
         "responses": {
@@ -122,7 +127,7 @@
     "/api/scripts/register": {
       "post": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "RegisterScriptAndBindToBus",
         "requestBody": {
@@ -145,7 +150,7 @@
     "/api/scripts/monaco-env/{topic}": {
       "get": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "GetMonacoEnvironment",
         "parameters": [
@@ -175,7 +180,7 @@
     "/api/scripts/{scriptId}": {
       "get": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "GetScriptById",
         "parameters": [
@@ -203,7 +208,7 @@
       },
       "delete": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "DeleteScriptById",
         "parameters": [
@@ -226,7 +231,7 @@
     "/api/scripts": {
       "get": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "GetAllScripts",
         "responses": {
@@ -249,7 +254,7 @@
     "/api/scripts/save": {
       "post": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "SaveScript",
         "requestBody": {
@@ -272,7 +277,7 @@
     "/api/script/test/invoke": {
       "get": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "InvokeScriptTest",
         "responses": {
@@ -285,7 +290,7 @@
     "/api/events/invoke": {
       "post": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "InvokeManualEvent",
         "responses": {
@@ -298,7 +303,7 @@
     "/api/events/listen": {
       "get": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "ListenToGlobalEventBusStream",
         "responses": {
@@ -311,7 +316,7 @@
     "/api/auth/config": {
       "post": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "SaveAuthConfig",
         "requestBody": {
@@ -339,7 +344,7 @@
       },
       "get": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "HasAuthConfig",
         "parameters": [
@@ -369,7 +374,7 @@
     "/api/auth/login/youtube": {
       "get": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "YoutubeLoginUrl",
         "parameters": [
@@ -407,7 +412,7 @@
     "/api/auth/callback/youtube": {
       "get": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "parameters": [
           {
@@ -437,7 +442,7 @@
     "/api/auth/profile": {
       "get": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "operationId": "GetProfile",
         "parameters": [
@@ -480,10 +485,30 @@
         }
       }
     },
+    "/api/environment/platform": {
+      "get": {
+        "tags": [
+          "YStreamUtils.Docker"
+        ],
+        "operationId": "GetRunningEnvironment",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvironmentPlatformResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "responses": {
           "200": {
@@ -495,7 +520,7 @@
     "/api/version": {
       "get": {
         "tags": [
-          "YStreamUtils"
+          "YStreamUtils.Docker"
         ],
         "responses": {
           "200": {
@@ -507,6 +532,16 @@
   },
   "components": {
     "schemas": {
+      "ApplicationPlatform": {
+        "enum": [
+          "windows",
+          "docker",
+          "linux",
+          "macOS",
+          "unknown"
+        ],
+        "type": "string"
+      },
       "ConnectUrlResponse": {
         "required": [
           "url"
@@ -529,13 +564,25 @@
           }
         }
       },
+      "EnvironmentPlatformResponse": {
+        "required": [
+          "platform"
+        ],
+        "type": "object",
+        "properties": {
+          "platform": {
+            "$ref": "#/components/schemas/ApplicationPlatform"
+          }
+        }
+      },
       "EventKey": {
         "enum": [
-          "ManualInvoke",
-          "StreamChatMessage",
-          "YoutubeSuperChat",
-          "ApplicationLog"
-        ]
+          "app:manual",
+          "stream:chat_message",
+          "stream:youtube:superchat",
+          "app:log"
+        ],
+        "type": "string"
       },
       "OAuthConfigInput": {
         "required": [
@@ -562,9 +609,10 @@
       },
       "Platform": {
         "enum": [
-          "YouTube",
-          "Twitch"
-        ]
+          "youtube",
+          "twitch"
+        ],
+        "type": "string"
       },
       "PluginManifest": {
         "required": [
@@ -732,7 +780,7 @@
   },
   "tags": [
     {
-      "name": "YStreamUtils"
+      "name": "YStreamUtils.Docker"
     }
   ]
 }

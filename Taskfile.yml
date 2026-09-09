@@ -1,48 +1,82 @@
 ﻿version: '3'
 
 tasks:
-  build:backend:
-    desc: "Compiles the C# ASP.NET Core backend and extracts the OpenAPI document"
+  build:docker:
+    desc: "Compiles the Docker-targeted entrypoint wrapper"
     cmds:
-      - cd YStreamUtils && dotnet build
+      - dotnet build YStreamUtils.Docker/YStreamUtils.Docker.csproj
+
+  build:desktop:
+    desc: "Compiles the PhotinoX Desktop entrypoint executable"
+    cmds:
+      - dotnet build YStreamUtils.Desktop/YStreamUtils.Desktop.csproj
 
   codegen:frontend:
-    desc: "Generates type-safe Svelte TypeScript API clients from OpenAPI spec"
-    deps:
-      - build:backend
+    desc: "Generates type-safe Svelte TypeScript API clients automatically"
     cmds:
+      - powershell -Command "Start-Job { dotnet run --project YStreamUtils.Docker/YStreamUtils.Docker.csproj -- --dev }"
+      - powershell -Command "Start-Sleep -Seconds 3"
+      - powershell -Command "Invoke-WebRequest http://localhost:5000/openapi/v1.json -OutFile ./openapi.json"
+      - powershell -Command "Get-Job | Remove-Job -Force"
       - cd frontend && npm run codegen
   
-  dev:
-    desc: "Builds schema, runs type generation, and boots both live servers in watch mode"
+  dev:docker:
+    desc: "Runs code generation and boots both Docker backend and Frontend concurrently"
     deps:
       - codegen:frontend
     cmds:
-      - task: start:all
-
-  start:all:
-    internal: true
-    desc: "Spins up watch servers concurrently"
+      - echo "Launching backend watch server and Vite UI proxy..."
+      - task: watch:all:docker
+  
+  dev:desktop:
+    desc: "Runs code generation and boots both PhotinoX desktop backend and Frontend concurrently"
     deps:
-      - task: start:backend
-      - task: start:frontend
+      - codegen:frontend
     cmds:
-      - echo "Launching backend watch server on :5000 and Vite UI proxy on :5173..."
+      - echo "Launching desktop watch wrapper and Vite UI proxy..."
+      - task: watch:all:desktop
 
-  start:backend:
+  watch:all:docker:
+    internal: true
+    deps:
+      - task: start:backend:docker
+      - task: start:frontend
+
+  watch:all:desktop:
+    internal: true
+    deps:
+      - task: start:backend:desktop
+      - task: start:frontend:desktop
+
+  start:backend:docker:
     internal: true
     env:
       DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER: 'true'
     cmds:
-      - cd YStreamUtils && dotnet watch run -- --dev
+      - dotnet watch run --project YStreamUtils.Docker/YStreamUtils.Docker.csproj -- --dev
+
+  start:backend:desktop:
+    internal: true
+    env:
+      DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER: 'true'
+    cmds:
+      - dotnet watch run --project YStreamUtils.Desktop/YStreamUtils.Desktop.csproj -- --dev
 
   start:frontend:
     internal: true
     cmds:
       - cd frontend && npm run dev
 
+  start:frontend:desktop:
+    internal: true
+    env:
+      VITE_BROWSER: 'none'
+    cmds:
+      - cd frontend && npm run dev
+
   build:prod:
-    desc: "Compiles optimized production UI and builds final native .NET desktop binary"
+    desc: "Compiles optimized production UI and builds final native .NET desktop binaries"
     cmds:
       - cd frontend && npm run build
-      - cd YStreamUtils && dotnet publish -c Release
+      - dotnet publish YStreamUtils.Desktop/YStreamUtils.Desktop.csproj -c Release -o ./dist/desktop
+      - dotnet publish YStreamUtils.Docker/YStreamUtils.Docker.csproj -c Release -o ./dist/docker

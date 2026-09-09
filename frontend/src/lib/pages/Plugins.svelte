@@ -1,0 +1,205 @@
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { marked } from 'marked';
+  import Card from '../components/base/Card.svelte';
+  import Button from '../components/base/Button.svelte';
+  import { downloadAndInstallPlugin, fetchAllRegistryPlugins, getInstalledPlugins } from '$lib/api';
+  import type { PluginManifest } from '$lib/api';
+
+  let plugins = $state<PluginManifest[] | null>([]);
+  let selectedPlugin = $state<PluginManifest | null>(null);
+  let readmeHtml = $state('');
+  let activeTab = $state<string>('readme');
+  let loadingList = $state(true);
+  let loadingDetails = $state(false);
+  let installStatus = $state<Record<string, string>>({});
+  let showModal = $state(false);
+
+  let installedPlugins = $state<string[]>([]);
+
+  onMount(async () => {
+    await refreshRegistry();
+    const plugins = await getInstalledPlugins();
+    if (plugins != null) {
+      installedPlugins = Object.keys(plugins.data).map((s) => s.replaceAll('-', '_'));
+    }
+  });
+
+  async function refreshRegistry() {
+    loadingList = true;
+    try {
+      const result = await fetchAllRegistryPlugins();
+      if (result.status === 200 && result.data) {
+        plugins = result.data;
+      } else {
+        console.error('Failed to fetch plugins:', result);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      loadingList = false;
+    }
+  }
+
+  async function openReadme(plugin: PluginManifest) {
+    selectedPlugin = plugin;
+    activeTab = 'readme';
+    showModal = true;
+    await fetchMarkdownContent('README.md');
+  }
+
+  async function switchTab(tab: string) {
+    activeTab = tab;
+    const fileName = tab === 'readme' ? 'README.md' : 'CHANGELOG.md';
+    await fetchMarkdownContent(fileName);
+  }
+
+  async function fetchMarkdownContent(fileName: string) {
+    if (!selectedPlugin) return;
+    loadingDetails = true;
+    readmeHtml = 'Loading...';
+
+    const branches = ['refs/heads/main', 'refs/heads/master'];
+    try {
+      for (const branch of branches) {
+        const rawUrl = `https://raw.githubusercontent.com/${selectedPlugin.source.owner}/${selectedPlugin.source.repository}/${branch}/${fileName}`;
+        const res = await fetch(rawUrl);
+        if (res.status === 200) {
+          const text = await res.text();
+          readmeHtml = await marked.parse(text);
+        }
+      }
+    } catch (err) {
+      readmeHtml = 'Failed to load content.';
+    } finally {
+      loadingDetails = false;
+    }
+  }
+
+  async function installPlugin(plugin: PluginManifest) {
+    installStatus[plugin.name] = 'installing';
+    try {
+      const res = await downloadAndInstallPlugin(plugin);
+      if (res.status !== 200) {
+        throw new Error(`Failed to install plugin: ${res.status}`);
+      }
+      installStatus[plugin.name] = 'success';
+      setTimeout(() => {
+        installStatus[plugin.name] = '';
+      }, 3000);
+    } catch (err) {
+      console.error(err);
+      installStatus[plugin.name] = 'error';
+    }
+  }
+
+  async function isPluginInstalled(pluginName: string): Promise<boolean> {
+    const plugins = await getInstalledPlugins();
+    if (plugins == null) return false;
+    return Object.keys(plugins.data).filter((s) => s === pluginName).length > 0;
+  }
+</script>
+
+<div>
+  <div>
+    <h2>Plugin Marketplace</h2>
+    <button onclick={refreshRegistry} disabled={loadingList}>Refresh</button>
+  </div>
+
+  {#if loadingList}
+    <p>Loading registries...</p>
+  {:else if plugins?.length === 0}
+    <p>No plugins found.</p>
+  {:else}
+    <div class="plugins-list">
+      {#each plugins as plugin}
+        <Card>
+          <div class="plugin-card">
+            <div>
+              <strong>{plugin.name}</strong>
+              <span class="span">v{plugin.version}</span>
+            </div>
+            <p>
+              {plugin.documentation?.description || 'No description available.'}
+            </p>
+            <small class="span">By {plugin.authors?.join(', ')}</small>
+
+            <div style="padding-top: var(--space-4);">
+              <Button commandfor="plugin-modal" command="show-modal" onclick={() => (selectedPlugin = plugin)}>
+                View Docs</Button
+              >
+              {#if installedPlugins.includes(plugin.name.replaceAll('-', '_'))}
+                <Button variant="success">Installed</Button>
+              {:else}
+                <Button
+                  onclick={() => installPlugin(plugin)}
+                  disabled={installStatus[plugin.name] === 'installing'}
+                  variant={installStatus[plugin.name] as
+                    'accent' | 'surface' | 'success' | 'warning' | 'error' | 'transparent' | undefined}
+                >
+                  {#if installStatus[plugin.name] === 'installing'}Installing...
+                  {:else if installStatus[plugin.name] === 'success'}Installed!
+                  {:else if installStatus[plugin.name] === 'error'}Error
+                  {:else}Install
+                  {/if}
+                </Button>
+              {/if}
+            </div>
+          </div>
+        </Card>
+      {/each}
+    </div>
+  {/if}
+</div>
+
+<dialog id="plugin-modal" class="fullscreen-dialog" closedby="any">
+  <Card style=" width: 100%;padding: var(--space-8);">
+    <div class="plugin-card">
+      <div>
+        <h3>{selectedPlugin?.name} Documentation</h3>
+        <Button commandfor="plugin-modal" command="request-close">&times;</Button>
+      </div>
+
+      <div>
+        <Button onclick={() => switchTab('readme')}>README</Button>
+        <Button onclick={() => switchTab('changelog')}>CHANGELOG</Button>
+      </div>
+
+      <div>
+        {@html readmeHtml}
+      </div>
+    </div>
+  </Card>
+</dialog>
+
+<style>
+  .plugins-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+  }
+
+  .plugin-card {
+    display: flex;
+    flex-flow: column nowrap;
+    gap: var(--space-2);
+    width: fit-content;
+    padding: var(--space-2);
+  }
+
+  .span {
+    font-weight: 300;
+    color: var(--color-text-muted);
+  }
+
+  .fullscreen-dialog {
+    position: fixed;
+    inset: 0;
+    width: 90%;
+    max-width: 500px;
+    height: max-content;
+    margin: auto !important;
+    background: transparent;
+    border: none;
+  }
+</style>
