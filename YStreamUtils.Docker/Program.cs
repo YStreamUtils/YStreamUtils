@@ -15,7 +15,9 @@ builder.Services.AddYStreamUtils();
 
 var app = builder.Build();
 
+app.RunDatabaseMigrations();
 app.UseDefaultEndpoints();
+
 
 if (app.Environment.IsDevelopment())
 {
@@ -25,29 +27,6 @@ else
 {
     app.UseDefaultFiles();
     app.UseStaticFiles();
-}
-
-var isOpenApiGen = Environment.GetEnvironmentVariable("DOTNET_OPENAPI_GENERATION") == "true";
-
-if (!isOpenApiGen)
-{
-    using var scope = app.Services.CreateScope();
-    var services = scope.ServiceProvider;
-    try
-    {
-        var db = services.GetRequiredService<AppDbContext>();
-        await db.Database.MigrateAsync(); 
-        Console.WriteLine("Database migrations applied successfully.");
-    }
-    catch (Exception ex)
-    {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while migrating the database.");
-    }
-}
-else
-{
-    Console.WriteLine("[OpenAPI Gen] Skipping database operations during build-time schema extraction.");
 }
 
 

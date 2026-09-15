@@ -46,7 +46,7 @@ public partial class ScriptsService(
             {
                 try
                 {
-                    var preparedScript = Engine.PrepareScript(plugin.JavaScriptCode, name);
+                    var preparedScript = Engine.PrepareScript(plugin.PluginSource, name);
                     var perms = plugin.Manifest.Permissions.Select(p => p.ToString()).ToList();
                     
                     _cachedPlugins[name] = new CompiledPlugin(preparedScript, perms);

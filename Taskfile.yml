@@ -1,4 +1,4 @@
-﻿version: '3'
+﻿version: "3"
 
 tasks:
   build:docker:
@@ -14,12 +14,11 @@ tasks:
   codegen:frontend:
     desc: "Generates type-safe Svelte TypeScript API clients automatically"
     cmds:
-      - powershell -Command "Start-Job { dotnet run --project YStreamUtils.Docker/YStreamUtils.Docker.csproj -- --dev }"
-      - powershell -Command "Start-Sleep -Seconds 3"
-      - powershell -Command "Invoke-WebRequest http://localhost:5000/openapi/v1.json -OutFile ./openapi.json"
-      - powershell -Command "Get-Job | Remove-Job -Force"
+      - powershell -Command "Start-Process dotnet -ArgumentList 'run --project YStreamUtils.Docker/YStreamUtils.Docker.csproj -- --dev' -NoNewWindow"
+      - curl --retry 30 --retry-delay 1 --retry-connrefused http://localhost:5000/openapi/v1.json -o ./openapi.json
+      - powershell -Command "Stop-Process -Name dotnet -Force -ErrorAction SilentlyContinue"
       - cd frontend && npm run codegen
-  
+
   dev:docker:
     desc: "Runs code generation and boots both Docker backend and Frontend concurrently"
     deps:
@@ -27,7 +26,7 @@ tasks:
     cmds:
       - echo "Launching backend watch server and Vite UI proxy..."
       - task: watch:all:docker
-  
+
   dev:desktop:
     desc: "Runs code generation and boots both PhotinoX desktop backend and Frontend concurrently"
     deps:
@@ -51,14 +50,14 @@ tasks:
   start:backend:docker:
     internal: true
     env:
-      DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER: 'true'
+      DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER: "true"
     cmds:
       - dotnet watch run --project YStreamUtils.Docker/YStreamUtils.Docker.csproj -- --dev
 
   start:backend:desktop:
     internal: true
     env:
-      DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER: 'true'
+      DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER: "true"
     cmds:
       - dotnet watch run --project YStreamUtils.Desktop/YStreamUtils.Desktop.csproj -- --dev
 
@@ -70,7 +69,7 @@ tasks:
   start:frontend:desktop:
     internal: true
     env:
-      VITE_BROWSER: 'none'
+      VITE_BROWSER: "none"
     cmds:
       - cd frontend && npm run dev
 

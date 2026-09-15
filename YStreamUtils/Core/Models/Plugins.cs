@@ -4,7 +4,7 @@ using JetBrains.Annotations;
 
 namespace YStreamUtils.Core.Models;
 
-public record Plugin(string JavaScriptCode, string TypeScriptDefs, PluginManifest Manifest);
+public record Plugin(string PluginSource, string TypeScriptDefs, PluginManifest Manifest);
 
 public class PluginManifest
 {
@@ -15,10 +15,11 @@ public class PluginManifest
     [Required]
     [JsonPropertyName("version")]
     public required string Version { get; init; }
-
+    
     [Required]
     [JsonPropertyName("entryPoint")]
     public required string EntryPoint { get; init; }
+
 
     [Required]
     [JsonPropertyName("permissions")]
@@ -59,5 +60,6 @@ public class DocumentationConfig
 
 public class RegistryDistribution
 {
+    [JsonPropertyName("plugins")]
     public List<PluginManifest> Plugins { get; init; } = [];
 }

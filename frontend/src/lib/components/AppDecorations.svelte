@@ -1,31 +1,8 @@
 <script lang="ts">
   import { Menu, Minus, Square, X } from '@lucide/svelte';
-  import { sidebar } from '../state/navigation.svelte';
-    import type { ApplicationPlatform } from '$lib/api';
+  import { ApplicationPlatform } from '$lib/api';
 
   const { onMenuClicked } = $props<{ onMenuClicked: () => void }>();
-
-  // function hasWindow(): boolean {
-  //   return window.external && window.external.sendMessage;
-  // }
-
-  // function minimize() {
-  //   if (hasWindow()) {
-  //     window.external.sendMessage('window-minimize');
-  //   }
-  // }
-
-  // function maximize() {
-  //   if (hasWindow()) {
-  //     window.external.sendMessage('window-maximize');
-  //   }
-  // }
-
-  // function close() {
-  //   if (hasWindow()) {
-  //     window.external.sendMessage('window-close');
-  //   }
-  // }
 
   let environment = $state<ApplicationPlatform>(ApplicationPlatform.Windows);
 </script>
@@ -41,17 +18,19 @@
   <div class="title">
     <p>YStream<span>Utils</span></p>
   </div>
-  <!-- <div class="controls">
-    <button class="btn btn-center btn-system btn-minimize" onclick={() => Window.Minimise()}>
-      <Minus size={16} />
-    </button>
-    <button class="btn btn-center btn-system btn-maximize" onclick={() => Window.ToggleMaximise()}>
-      <Square size={16} />
-    </button>
-    <button class="btn btn-center btn-system btn-close" onclick={() => Window.Close()}>
-      <X size={16} />
-    </button>
-  </div> -->
+  {#if environment === ApplicationPlatform.Windows || environment === ApplicationPlatform.MacOs || environment === ApplicationPlatform.LinuxNative}
+    <div class="controls">
+      <button class="btn btn-center btn-system btn-minimize" onclick={() => window.external.sendMessage('cmd:minimize')}>
+        <Minus size={16} />
+      </button>
+      <button class="btn btn-center btn-system btn-maximize" onclick={() => window.external.sendMessage('cmd:maximize')}>
+        <Square size={16} />
+      </button>
+      <button class="btn btn-center btn-system btn-close" onclick={() => window.external.sendMessage('cmd:close')}>
+        <X size={16} />
+      </button>
+    </div>
+  {/if}
 </div>
 
 <style>

@@ -5,7 +5,7 @@ using YStreamUtils.Extensions;
 
 namespace YStreamUtils.Desktop;
 
-internal class Program
+internal static class Program
 {
     private const string KestrelUrl = "http://localhost:5000";
 
@@ -20,21 +20,7 @@ internal class Program
 
             var app = builder.Build();
 
-            using (var scope = app.Services.CreateScope())
-            {
-                var services = scope.ServiceProvider;
-                try
-                {
-                    var db = services.GetRequiredService<AppDbContext>();
-                    await db.Database.MigrateAsync();
-                    Console.WriteLine("Database migrations applied successfully.");
-                }
-                catch (Exception ex)
-                {
-                    var logger = services.GetRequiredService<ILogger<Program>>();
-                    logger.LogError(ex, "An error occurred while migrating the database.");
-                }
-            }
+            app.RunDatabaseMigrations();
 
             if (app.Environment.IsDevelopment())
             {
@@ -56,6 +42,29 @@ internal class Program
         var mainWindow = new PhotinoWindow();
         mainWindow.SetTitle("YStreamUtils");
         mainWindow.SetChromeless(true);
+        mainWindow.SetSize(1024, 800);
+        mainWindow.Center();
+
+        mainWindow.RegisterWebMessageReceivedHandler((sender, eventArgs) =>
+        {
+            if (sender is null) return;
+            var window = sender as PhotinoWindow;
+            switch (eventArgs.Message)
+            {
+                case "cmd:begin-drag":
+                    window!.BeginWindowDrag();
+                    break;
+                case "cmd:minimize":
+                    window!.Minimize();
+                    break;
+                case "cmd:maximize":
+                    window!.SetMaximized(window.WindowState != PhotinoWindowState.Maximized);
+                    break;
+                case "cmd:close":
+                    window!.Close();
+                    break;
+            }
+        });
 
 #if DEBUG
         mainWindow.Load(new Uri("http://localhost:5173"));
