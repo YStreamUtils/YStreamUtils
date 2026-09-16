@@ -8,11 +8,11 @@ export type ApplicationPlatform = typeof ApplicationPlatform[keyof typeof Applic
 
 
 export const ApplicationPlatform = {
-  windows: 'windows',
-  docker: 'docker',
-  linux: 'linux',
-  macOS: 'macOS',
-  unknown: 'unknown',
+  Windows: 'Windows',
+  Docker: 'Docker',
+  LinuxNative: 'LinuxNative',
+  MacOs: 'MacOs',
+  Unknown: 'Unknown',
 } as const;
 
 export interface ConnectUrlResponse {
@@ -31,18 +31,18 @@ export type EventKey = typeof EventKey[keyof typeof EventKey];
 
 
 export const EventKey = {
-  'app:manual': 'app:manual',
-  'stream:chat_message': 'stream:chat_message',
-  'stream:youtube:superchat': 'stream:youtube:superchat',
-  'app:log': 'app:log',
+  ManualInvoke: 'ManualInvoke',
+  StreamChatMessage: 'StreamChatMessage',
+  YoutubeSuperChat: 'YoutubeSuperChat',
+  ApplicationLog: 'ApplicationLog',
 } as const;
 
 export type Platform = typeof Platform[keyof typeof Platform];
 
 
 export const Platform = {
-  youtube: 'youtube',
-  twitch: 'twitch',
+  YouTube: 'YouTube',
+  Twitch: 'Twitch',
 } as const;
 
 export interface OAuthConfigInput {

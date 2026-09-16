@@ -6,7 +6,7 @@ using YStreamUtils.Core.Models;
 namespace YStreamUtils.Core.Entities;
 
 [PrimaryKey(nameof(Platform), nameof(IsBot))]
-public class OAuthToken
+public class OAuthToken : ITenantEntity
 {
     [Required]
     [MaxLength(50)]
@@ -16,5 +16,7 @@ public class OAuthToken
 
     [Required]
     public string TokenJson { get; set; } = string.Empty;
+
+    public string TenantId { get; set; }  = string.Empty;
 }
 

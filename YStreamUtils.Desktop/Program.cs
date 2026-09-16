@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Microsoft.EntityFrameworkCore;
 using Photino.NET;
 using YStreamUtils.Core.Data;
@@ -65,6 +67,10 @@ internal static class Program
                     break;
             }
         });
+        mainWindow.NewWindowRequested += (sender, eventArgs) =>
+        {
+            OpenInSystemBrowser(eventArgs.Uri.ToString());
+        };
 
 #if DEBUG
         mainWindow.Load(new Uri("http://localhost:5173"));
@@ -74,4 +80,28 @@ internal static class Program
 
         app.Run(mainWindow);
     }
+
+    private static void OpenInSystemBrowser(string url)
+    {
+        try
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                Process.Start("xdg-open", url);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                Process.Start("open", url);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to open browser: {ex.Message}");
+        }
+    }
 }
+

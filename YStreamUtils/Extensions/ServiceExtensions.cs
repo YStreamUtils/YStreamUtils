@@ -1,9 +1,6 @@
-﻿using System.Reflection;
-using System.Text.Json.Nodes;
-using System.Text.Json.Serialization;
-using Google.Apis.Util.Store;
+﻿using Google.Apis.Util.Store;
+using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.OpenApi;
 using YStreamUtils.Core.Data;
 using YStreamUtils.Core.Entities;
 using YStreamUtils.Core.Events;
@@ -25,6 +22,13 @@ public static class ServiceExtensions
             options.SerializerOptions.TypeInfoResolverChain.Add(EntityJsonContext.Default);
             options.SerializerOptions.TypeInfoResolverChain.Add(AuthEndpointJsonContext.Default);
             options.SerializerOptions.TypeInfoResolverChain.Add(EnvironmentEndpointJsonContext.Default);
+        });
+
+        serviceCollection.Configure<JsonOptions>(options =>
+        {
+            options.SerializerOptions.PropertyNameCaseInsensitive = true;
+            options.SerializerOptions.PropertyNamingPolicy = null;
+            options.SerializerOptions.WriteIndented = true;
         });
 
         serviceCollection.AddSingleton<IEventBus, EventBus>();

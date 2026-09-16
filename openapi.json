@@ -534,13 +534,12 @@
     "schemas": {
       "ApplicationPlatform": {
         "enum": [
-          "windows",
-          "docker",
-          "linux",
-          "macOS",
-          "unknown"
-        ],
-        "type": "string"
+          "Windows",
+          "Docker",
+          "LinuxNative",
+          "MacOs",
+          "Unknown"
+        ]
       },
       "ConnectUrlResponse": {
         "required": [
@@ -577,12 +576,11 @@
       },
       "EventKey": {
         "enum": [
-          "app:manual",
-          "stream:chat_message",
-          "stream:youtube:superchat",
-          "app:log"
-        ],
-        "type": "string"
+          "ManualInvoke",
+          "StreamChatMessage",
+          "YoutubeSuperChat",
+          "ApplicationLog"
+        ]
       },
       "OAuthConfigInput": {
         "required": [
@@ -609,10 +607,9 @@
       },
       "Platform": {
         "enum": [
-          "youtube",
-          "twitch"
-        ],
-        "type": "string"
+          "YouTube",
+          "Twitch"
+        ]
       },
       "PluginManifest": {
         "required": [

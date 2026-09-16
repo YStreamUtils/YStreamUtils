@@ -9,9 +9,8 @@
     "checkJs": true,
     "isolatedModules": true,
     "paths": {
-      "$lib/*": ["./src/lib/*"],
-      "$bindings/*": ["./bindings/*"]
+      "$lib/*": ["./src/lib/*"]
     },
   },
-  "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.svelte", "bindings"],
+  "include": ["src/**/*.ts", "src/**/*.svelte", "bindings"],
 }

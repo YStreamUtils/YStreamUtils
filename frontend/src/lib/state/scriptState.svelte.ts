@@ -17,7 +17,6 @@ export class ScriptState {
   constructor() {
     onMount(async () => {
       const loaded = await getAllScripts();
-      // console.log(loaded);
 
       if (loaded == null || Object.keys(loaded).length === 0) {
         return;

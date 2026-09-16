@@ -24,7 +24,6 @@ export class SettingsState {
 
       const timer = setTimeout(() => {
         const rawData = $state.snapshot(currentSettings);
-        // console.log('Auto-saving configuration state:', rawData);
         saveSettings(rawData);
       }, 1000);
 

@@ -67,7 +67,7 @@ public static class ScriptsEndpoints
                 if (existing != null)
                 {
                     existing.Topic = incoming.Topic;
-                    existing.RawJsString = incoming.RawJsString;
+                    existing.Source = incoming.Source;
                     existing.IsEnabled = incoming.IsEnabled;
                 }
                 else
@@ -79,7 +79,7 @@ public static class ScriptsEndpoints
 
                 if (incoming.IsEnabled)
                 {
-                    await scriptsService.RegisterScriptAndBindToBusAsync(incoming.Topic, incoming.ScriptId, incoming.RawJsString);
+                    await scriptsService.RegisterScriptAndBindToBusAsync(incoming.Topic, incoming.ScriptId, incoming.Source);
                 }
 
                 return Results.Ok();
