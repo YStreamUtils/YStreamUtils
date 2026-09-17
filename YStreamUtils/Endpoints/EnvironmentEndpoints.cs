@@ -23,8 +23,3 @@ public static class EnvironmentEndpoints
         return builder;
     }
 }
-
-[JsonSerializable(typeof(EnvironmentPlatformResponse))]
-public partial class EnvironmentEndpointJsonContext : JsonSerializerContext
-{
-}

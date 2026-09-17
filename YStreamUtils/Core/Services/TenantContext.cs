@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 
 namespace YStreamUtils.Core.Services;
 
@@ -8,11 +9,11 @@ public class TenantContext(IHttpContextAccessor httpContextAccessor, string fall
     {
         get
         {
-            var context = httpContextAccessor.HttpContext;
+            var user = httpContextAccessor.HttpContext?.User;
             
-            return context?.Request.Headers
-                .TryGetValue("X-Tenant-ID", out var tenantId) == true ? tenantId.ToString() :
-                fallbackTenant;
+            var userId = user?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            return !string.IsNullOrEmpty(userId) ? userId : fallbackTenant;
         }
     }
 }

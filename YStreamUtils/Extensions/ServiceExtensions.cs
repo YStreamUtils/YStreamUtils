@@ -1,11 +1,13 @@
 ﻿using Google.Apis.Util.Store;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
+using System.Text.Json; // 🚀 Required for JsonNamingPolicy
 using YStreamUtils.Core.Data;
 using YStreamUtils.Core.Entities;
 using YStreamUtils.Core.Events;
 using YStreamUtils.Core.Models;
 using YStreamUtils.Core.Services;
+using YStreamUtils.Core.Services.YouTube;
 using YStreamUtils.Endpoints;
 
 namespace YStreamUtils.Extensions;
@@ -15,19 +17,21 @@ public static class ServiceExtensions
     public static IServiceCollection AddYStreamUtils(this IServiceCollection serviceCollection)
     {
         serviceCollection.AddHttpClient();
+        serviceCollection.AddHttpContextAccessor();
+        serviceCollection.AddAuthentication();
+        serviceCollection.AddAuthorization();
+        
         serviceCollection.ConfigureHttpJsonOptions(options =>
         {
-            options.SerializerOptions.TypeInfoResolverChain.Add(EventJsonContext.Default);
-            options.SerializerOptions.TypeInfoResolverChain.Add(ModelJsonContext.Default);
-            options.SerializerOptions.TypeInfoResolverChain.Add(EntityJsonContext.Default);
-            options.SerializerOptions.TypeInfoResolverChain.Add(AuthEndpointJsonContext.Default);
-            options.SerializerOptions.TypeInfoResolverChain.Add(EnvironmentEndpointJsonContext.Default);
+            options.SerializerOptions.PropertyNameCaseInsensitive = true;
+            options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+            options.SerializerOptions.WriteIndented = true;
         });
 
         serviceCollection.Configure<JsonOptions>(options =>
         {
             options.SerializerOptions.PropertyNameCaseInsensitive = true;
-            options.SerializerOptions.PropertyNamingPolicy = null;
+            options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             options.SerializerOptions.WriteIndented = true;
         });
 
@@ -35,10 +39,15 @@ public static class ServiceExtensions
         serviceCollection.AddSingleton<PluginService>();
         serviceCollection.AddSingleton<ScriptsService>();
         serviceCollection.AddSingleton<SettingsService>();
-        serviceCollection.AddDbContext<AppDbContext>();
+        
+        serviceCollection.AddSingleton<YouTubeStreamManager>();
+        serviceCollection.AddSingleton<YouTubeChatService>();
+
         serviceCollection.AddScoped<IDataStore, DbDataStore>();
         serviceCollection.AddScoped<YouTubeStreamService>();
         serviceCollection.AddScoped<YouTubeCredentialService>();
+        
+        serviceCollection.AddScoped<TenantContext>();
 
         serviceCollection.AddOpenApi();
         return serviceCollection;

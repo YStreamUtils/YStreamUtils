@@ -10,7 +10,13 @@
 
     <ItemGroup>
         <PackageReference Include="Google.Apis.Auth" Version="1.76.0" />
-        <PackageReference Include="Google.Apis.YouTube.v3" Version="1.76.0.4249" />
+        <PackageReference Include="Google.Apis.YouTube.v3" Version="1.76.0.4262" />
+        <PackageReference Include="Google.Protobuf" Version="3.36.1" />
+        <PackageReference Include="Grpc.Net.Client" Version="2.83.0" />
+        <PackageReference Include="Grpc.Tools" Version="2.84.0">
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+          <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
         <PackageReference Include="JetBrains.Annotations" Version="2026.2.0" />
         <PackageReference Include="Jint" Version="4.16.1" />
 
@@ -22,29 +28,34 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+        
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     </ItemGroup>
 
     <ItemGroup>
+        <Protobuf Include="Protos\stream_list.proto" GrpcServices="Client" />
+    </ItemGroup>
+    
+    <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
     </ItemGroup>
 
-    <Target Name="EnsureNpmInstall" BeforeTargets="Build" Condition="Exists('frontend\package.json') And !Exists('frontend\node_modules')">
+    <Target Name="EnsureNpmInstall" BeforeTargets="Build" Condition="Exists('frontend-sk\package.json') And !Exists('frontend-sk\node_modules')">
         <Message Importance="high" Text="Installing frontend dependencies using 'npm install'..." />
-        <Exec Command="npm install" WorkingDirectory="frontend" />
+        <Exec Command="npm install" WorkingDirectory="frontend-sk" />
     </Target>
 
     <ItemGroup>
-        <Compile Remove="..\frontend\node_modules\**" />
-        <Compile Remove="..\frontend\dist\**" />
+        <Compile Remove="..\frontend-sk\node_modules\**" />
+        <Compile Remove="..\frontend-sk\build\**" />
     </ItemGroup>
 
     <Target Name="PublishFrontend" AfterTargets="ComputeFilesToPublish">
-        <Exec Command="npm install" WorkingDirectory="..\frontend" />
-        <Exec Command="npm run build" WorkingDirectory="..\frontend" />
+        <Exec Command="npm install" WorkingDirectory="..\frontend-sk" />
+        <Exec Command="npm run build" WorkingDirectory="..\frontend-sk" />
 
         <ItemGroup>
-            <DistFiles Include="..\frontend\dist\**\*" />
+            <DistFiles Include="..\frontend\build\**\*" />
             <ResolvedFileToPublish Include="@(DistFiles)">
                 <RelativePath>wwwroot\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
                 <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>

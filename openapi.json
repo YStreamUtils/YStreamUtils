@@ -4,11 +4,6 @@
     "title": "YStreamUtils.Docker | v1",
     "version": "1.0.0"
   },
-  "servers": [
-    {
-      "url": "http://localhost:5000/"
-    }
-  ],
   "paths": {
     "/api/settings": {
       "get": {
@@ -447,14 +442,6 @@
         "operationId": "GetProfile",
         "parameters": [
           {
-            "name": "tenantId",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "platform",
             "in": "query",
             "required": true,
@@ -765,11 +752,14 @@
           "topic": {
             "$ref": "#/components/schemas/EventKey"
           },
-          "rawJsString": {
+          "source": {
             "type": "string"
           },
           "isEnabled": {
             "type": "boolean"
+          },
+          "tenantId": {
+            "type": "string"
           }
         }
       }

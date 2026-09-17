@@ -3,12 +3,16 @@ using System.Text.RegularExpressions;
 using Acornima.Ast;
 using Jint;
 using Jint.Native;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using YStreamUtils.Core.Bridges;
+using YStreamUtils.Core.Entities;
 using YStreamUtils.Core.Events;
 using YStreamUtils.Core.Models;
+using YStreamUtils.Extensions;
 
 namespace YStreamUtils.Core.Services;
+
 public record CompiledPlugin(Prepared<Script> Program, List<string> Permissions);
 
 public class CompiledScript
@@ -20,6 +24,7 @@ public class CompiledScript
 public partial class ScriptsService(
     ILogger<ScriptsService> logger,
     IEventBus eventBus,
+    IHttpContextAccessor httpContextAccessor,
     PluginService pluginService)
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -48,7 +53,7 @@ public partial class ScriptsService(
                 {
                     var preparedScript = Engine.PrepareScript(plugin.PluginSource, name);
                     var perms = plugin.Manifest.Permissions.Select(p => p.ToString()).ToList();
-                    
+
                     _cachedPlugins[name] = new CompiledPlugin(preparedScript, perms);
                 }
                 catch (Exception ex)
@@ -71,10 +76,12 @@ public partial class ScriptsService(
             fetchBridge.Register(vm, hostObj);
         }
 
-        hostObj.Set("log", JsValue.FromObject(vm, new Action<string, string>((level, msg) =>
-        {
-            logger.Log(ParseLogLevel(level), "[Plugin: {PluginName}] {Message}", pluginName, msg);
-        })));
+        hostObj.Set("log",
+            JsValue.FromObject(vm,
+                new Action<string, string>((level, msg) =>
+                {
+                    logger.Log(ParseLogLevel(level), "[Plugin: {PluginName}] {Message}", pluginName, msg);
+                })));
     }
 
     public async Task RegisterScriptAndBindToBusAsync(EventKey topic, string scriptId, string rawJsString)
@@ -92,10 +99,20 @@ public partial class ScriptsService(
 
             var matches = PluginsRegex().Matches(rawJsString);
             var detectedPlugins = matches.Select(m => m.Groups[1].Value).Distinct().ToList();
+            logger.LogDebug("Found {DetectedPluginsCount} plugins", detectedPlugins.Count);
+
+            var currentTenantId = httpContextAccessor.GetTenantContext().TenantId;
 
             var unsubscribingAction = eventBus.Subscribe(topic, async (payload, cancellationToken) =>
             {
-                var vm = new Engine(options => {
+                
+                if (payload is not ITenantEntity tenantEvent || tenantEvent.TenantId != currentTenantId)
+                {
+                    return;
+                }
+                
+                var vm = new Engine(options =>
+                {
                     options.Strict();
                     options.TimeoutInterval(TimeSpan.FromMilliseconds(150));
                 });
@@ -114,18 +131,20 @@ public partial class ScriptsService(
                     var pluginHostObj = new JsObject(vm);
                     InjectScopedHostObject(vm, pluginHostObj, name, plugin.Permissions);
                     vm.SetValue("host", (JsValue)pluginHostObj);
-                    
+
                     await vm.EvaluateAsync(plugin.Program, cancellationToken);
-                    
+
                     var boundPluginInstance = vm.GetValue(name);
                     pluginsObj.Set(name, boundPluginInstance);
                 }
 
                 var userHost = new JsObject(vm);
-                userHost.Set("log", JsValue.FromObject(vm, new Action<string, string>((level, msg) =>
-                {
-                    logger.Log(ParseLogLevel(level), "[Script: {ScriptId}] {Message}", scriptId, msg);
-                })));
+                userHost.Set("log",
+                    JsValue.FromObject(vm,
+                        new Action<string, string>((level, msg) =>
+                        {
+                            logger.Log(ParseLogLevel(level), "[Script: {ScriptId}] {Message}", scriptId, msg);
+                        })));
 
                 var cacheBridge = _caches.GetOrAdd(scriptId, id => new CacheBridge(id));
                 cacheBridge.Register(vm, userHost);
@@ -144,7 +163,7 @@ public partial class ScriptsService(
                 {
                     logger.LogError(ex, "Script runtime execution crashed. Script: {ScriptId}", scriptId);
                 }
-                
+
                 await Task.CompletedTask;
             });
 
@@ -173,6 +192,7 @@ public partial class ScriptsService(
                 var genericArg = typeTarget.GetGenericArguments()[0].Name;
                 typeName = $"StreamEventEnvelope_{genericArg}";
             }
+
             innerFields = $"    event: \"{topic}\";\n    platform: string;\n    data: any;\n";
         }
 
@@ -320,6 +340,7 @@ public partial class ScriptsService(
         "error" => LogLevel.Error,
         _ => LogLevel.Information
     };
+
     [GeneratedRegex(@"plugins\.(\w+)")]
     private static partial Regex PluginsRegex();
 }

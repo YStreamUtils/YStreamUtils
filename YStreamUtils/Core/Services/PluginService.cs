@@ -1,7 +1,4 @@
-﻿using System.Diagnostics;
-using System.IO;
-using System.IO.Compression;
-using System.Net.Http;
+﻿using System.IO.Compression;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -14,7 +11,7 @@ public class PluginService(ILogger<PluginService> logger, SettingsService settin
 {
     private readonly string _pluginDir = Path.Combine(Consts.ApplicationDataFolder, "plugins");
     private readonly SemaphoreSlim _lock = new(1, 1);
-    
+
     private Dictionary<string, Plugin> _activePlugins = new(StringComparer.OrdinalIgnoreCase);
     private string _pluginTypeCache = string.Empty;
 
@@ -58,11 +55,13 @@ public class PluginService(ILogger<PluginService> logger, SettingsService settin
             string.IsNullOrEmpty(manifest.Source.Owner) || string.IsNullOrEmpty(manifest.Source.Repository) ||
             string.IsNullOrEmpty(manifest.Version))
         {
-            throw new ArgumentException("Cannot process manifest: missing explicit identification or version metadata properties.");
+            throw new ArgumentException(
+                "Cannot process manifest: missing explicit identification or version metadata properties.");
         }
 
         var version = manifest.Version.StartsWith('v') ? manifest.Version : "v" + manifest.Version;
-        var downloadUrl = $"https://github.com/{manifest.Source.Owner}/{manifest.Source.Repository}/releases/download/{version}/{manifest.Name}.zip";
+        var downloadUrl =
+            $"https://github.com/{manifest.Source.Owner}/{manifest.Source.Repository}/releases/download/{version}/{manifest.Name}.zip";
 
         logger.LogInformation("Streaming structured zip distribution target archive: {Url}", downloadUrl);
 
@@ -85,12 +84,12 @@ public class PluginService(ILogger<PluginService> logger, SettingsService settin
 
             if (string.Equals(relativePath, "manifest.json", StringComparison.OrdinalIgnoreCase))
             {
-                continue; 
+                continue;
             }
 
             var filePath = Path.Combine(targetDir, relativePath);
 
-            if (string.IsNullOrEmpty(entry.Name)) 
+            if (string.IsNullOrEmpty(entry.Name))
             {
                 Directory.CreateDirectory(filePath);
                 continue;
@@ -120,71 +119,74 @@ public class PluginService(ILogger<PluginService> logger, SettingsService settin
         }
     }
 
-    public async Task ReloadLocalPluginsAsync()
-{
-    await _lock.WaitAsync();
-    try
+    private async Task ReloadLocalPluginsAsync()
     {
-        Directory.CreateDirectory(_pluginDir);
-        var directories = Directory.GetDirectories(_pluginDir);
-        var newActivePlugins = new Dictionary<string, Plugin>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var folderPath in directories)
+        await _lock.WaitAsync();
+        try
         {
-            var folderName = Path.GetFileName(folderPath);
-            var manifestPath = Path.Combine(folderPath, "manifest.json");
+            Directory.CreateDirectory(_pluginDir);
+            var directories = Directory.GetDirectories(_pluginDir);
+            var newActivePlugins = new Dictionary<string, Plugin>(StringComparer.OrdinalIgnoreCase);
 
-            if (!File.Exists(manifestPath))
+            foreach (var folderPath in directories)
             {
-                logger.LogWarning("Failed to locate manifest.json inside directory: {Dir}", folderName);
-                continue;
-            }
+                var folderName = Path.GetFileName(folderPath);
+                var manifestPath = Path.Combine(folderPath, "manifest.json");
 
-            try
-            {
-                var jsonText = await File.ReadAllTextAsync(manifestPath);
-                var manifest = JsonSerializer.Deserialize<PluginManifest>(jsonText) 
-                               ?? throw new InvalidDataException();
-
-                logger.LogInformation("Found plugin {Name} at {Path}", manifest.Name, manifestPath);
-                var pluginNamespace = GetSafePluginNamespace(manifest.Name);
-                
-                var fullEntryPointPath = Path.Combine(folderPath, manifest.EntryPoint);
-                if (!File.Exists(fullEntryPointPath))
+                if (!File.Exists(manifestPath))
                 {
-                    logger.LogError("EntryPoint file missing for plugin {Name}: {Path}", manifest.Name, fullEntryPointPath);
+                    logger.LogWarning("Failed to locate manifest.json inside directory: {Dir}", folderName);
                     continue;
                 }
-                var bundledJs = await File.ReadAllTextAsync(fullEntryPointPath, Encoding.UTF8);
 
-                var typeDefs = string.Empty;
-                var defFilePath = Path.Combine(folderPath, "index.d.ts");
-                if (File.Exists(defFilePath))
+                try
                 {
-                    typeDefs = await File.ReadAllTextAsync(defFilePath);
+                    var jsonText = await File.ReadAllTextAsync(manifestPath);
+                    var manifest = JsonSerializer.Deserialize<PluginManifest>(jsonText)
+                                   ?? throw new InvalidDataException();
+
+                    logger.LogInformation("Found plugin {Name} at {Path}", manifest.Name, manifestPath);
+                    var pluginNamespace = GetSafePluginNamespace(manifest.Name);
+
+                    var fullEntryPointPath = Path.Combine(folderPath, manifest.EntryPoint);
+                    if (!File.Exists(fullEntryPointPath))
+                    {
+                        logger.LogError("EntryPoint file missing for plugin {Name}: {Path}", manifest.Name,
+                            fullEntryPointPath);
+                        continue;
+                    }
+
+                    var bundledJs = await File.ReadAllTextAsync(fullEntryPointPath, Encoding.UTF8);
+
+                    var typeDefs = string.Empty;
+                    var defFilePath = Path.Combine(folderPath, "index.d.ts");
+                    if (File.Exists(defFilePath))
+                    {
+                        typeDefs = await File.ReadAllTextAsync(defFilePath);
+                    }
+
+                    newActivePlugins[pluginNamespace] = new Plugin(bundledJs, typeDefs, manifest);
                 }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex,
+                        "Failed decoding manifest.json or loading pre-bundled script for directory: {Dir}", folderName);
+                }
+            }
 
-                newActivePlugins[pluginNamespace] = new Plugin(bundledJs, typeDefs, manifest);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed decoding manifest.json or loading pre-bundled script for directory: {Dir}", folderName);
-            }
+            _pluginTypeCache = BuildDynamicPluginDefinitions(newActivePlugins);
+            _activePlugins = newActivePlugins;
         }
-
-        _pluginTypeCache = BuildDynamicPluginDefinitions(newActivePlugins);
-        _activePlugins = newActivePlugins;
+        finally
+        {
+            _lock.Release();
+        }
     }
-    finally
-    {
-        _lock.Release();
-    }
-}
 
-    private static string GetSafePluginNamespace(string input) => 
+    private static string GetSafePluginNamespace(string input) =>
         new string(input.Where(char.IsLetterOrDigit).ToArray());
 
-    private static string BuildDynamicPluginDefinitions(Dictionary<string, Plugin> plugins) => 
+    private static string BuildDynamicPluginDefinitions(Dictionary<string, Plugin> plugins) =>
         string.Join("\n", plugins.Values.Select(p => p.TypeScriptDefs));
 
     public string GetDynamicPluginDefinitions() => _pluginTypeCache;

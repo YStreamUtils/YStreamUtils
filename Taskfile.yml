@@ -1,6 +1,44 @@
 ﻿version: "3"
 
+vars:
+  TIMESTAMP:
+    sh: powershell -NoProfile -Command "Get-Date -Format 'yyyyMMddHHmmss'"
+  
+  CORE_PROJECT: "YStreamUtils/YStreamUtils.csproj"
+  DESKTOP_PROJECT: "YStreamUtils.Desktop/YStreamUtils.Desktop.csproj"
+  DOCKER_PROJECT: "YStreamUtils.Docker/YStreamUtils.Docker.csproj"
+
 tasks:
+  migrate:add:sqlite:
+    desc: "Generate a new SQLite migration for the Desktop project."
+    vars:
+      RESOLVED_NAME: '{{default (default (printf "AutoMigration_%s" .TIMESTAMP) .CLI_ARGS) .name}}'
+    env:
+      EF_PROVIDER: "sqlite"
+    cmds:
+      - echo "Generating SQLite migration '{{.RESOLVED_NAME}}_sqlite'..."
+      - dotnet ef migrations add {{.RESOLVED_NAME}}_sqlite --project YStreamUtils/YStreamUtils.csproj --startup-project YStreamUtils.Desktop/YStreamUtils.Desktop.csproj --context SqliteDbContext --output-dir Core/Data/Migrations/Sqlite
+
+  migrate:add:postgres:
+    desc: "Generate a new PostgreSQL migration for the Docker web project."
+    vars:
+      RESOLVED_NAME: '{{default (default (printf "AutoMigration_%s" .TIMESTAMP) .CLI_ARGS) .name}}'
+    env:
+      EF_PROVIDER: "postgres"
+    cmds:
+      - echo "Generating Postgres migration '{{.RESOLVED_NAME}}_postgres'..."
+      - dotnet ef migrations add {{.RESOLVED_NAME}}_postgres --project YStreamUtils/YStreamUtils.csproj --startup-project YStreamUtils.Docker/YStreamUtils.Docker.csproj --context PostgresDbContext --output-dir Core/Data/Migrations/Postgres
+
+  migrate:add:all:
+    desc: "Generate matching migrations for BOTH database providers simultaneously. Usage -> task migrate:add:all name=MigrationName"
+    vars:
+      RESOLVED_NAME: '{{default (default (printf "AutoMigration_%s" .TIMESTAMP) .CLI_ARGS) .name}}'
+    cmds:
+      - task: migrate:add:sqlite
+        vars: { name: "{{.RESOLVED_NAME}}" }
+      - task: migrate:add:postgres
+        vars: { name: "{{.RESOLVED_NAME}}" }
+
   build:docker:
     desc: "Compiles the Docker-targeted entrypoint wrapper"
     cmds:
@@ -11,13 +49,18 @@ tasks:
     cmds:
       - dotnet build YStreamUtils.Desktop/YStreamUtils.Desktop.csproj
 
+  dev:postgres:
+    desc: "Starts the dev postgres instance in the background"
+    cmds:
+      - docker compose -f dev-compose.yml up -d
+
   codegen:frontend:
     desc: "Generates type-safe Svelte TypeScript API clients automatically"
+    deps:
+      - dev:postgres
     cmds:
-      - powershell -Command "Start-Process dotnet -ArgumentList 'run --project YStreamUtils.Docker/YStreamUtils.Docker.csproj -- --dev' -NoNewWindow"
-      - curl --retry 30 --retry-delay 1 --retry-connrefused http://localhost:5000/openapi/v1.json -o ./openapi.json
-      - powershell -Command "Stop-Process -Name dotnet -Force -ErrorAction SilentlyContinue"
-      - cd frontend && npm run codegen
+      - dotnet build YStreamUtils.Docker/YStreamUtils.Docker.csproj -c Debug
+      - cd frontend-sk && npm run codegen
 
   dev:docker:
     desc: "Runs code generation and boots both Docker backend and Frontend concurrently"
@@ -64,18 +107,18 @@ tasks:
   start:frontend:
     internal: true
     cmds:
-      - cd frontend && npm run dev
+      - cd frontend-sk && npm run dev
 
   start:frontend:desktop:
     internal: true
     env:
       VITE_BROWSER: "none"
     cmds:
-      - cd frontend && npm run dev
+      - cd frontend-sk && npm run dev
 
   build:prod:
     desc: "Compiles optimized production UI and builds final native .NET desktop binaries"
     cmds:
-      - cd frontend && npm run build
+      - cd frontend-sk && npm run build
       - dotnet publish YStreamUtils.Desktop/YStreamUtils.Desktop.csproj -c Release -o ./dist/desktop
       - dotnet publish YStreamUtils.Docker/YStreamUtils.Docker.csproj -c Release -o ./dist/docker

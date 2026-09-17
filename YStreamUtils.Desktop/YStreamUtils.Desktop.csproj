@@ -8,11 +8,19 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
         <PackageReference Include="PhotinoX" Version="5.1.1" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\YStreamUtils\YStreamUtils.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Services\" />
     </ItemGroup>
 
     <Target Name="CompileSvelteForDesktop" BeforeTargets="Build" Condition="Exists('..\frontend\package.json')">

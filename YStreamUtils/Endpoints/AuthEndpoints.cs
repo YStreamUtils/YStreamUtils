@@ -10,10 +10,13 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using YStreamUtils.Core.Data;
 using YStreamUtils.Core.Entities;
 using YStreamUtils.Core.Models;
 using YStreamUtils.Core.Services;
+using YStreamUtils.Core.Services.Profile;
+using YStreamUtils.Core.Services.YouTube;
 
 namespace YStreamUtils.Endpoints;
 
@@ -67,7 +70,8 @@ public static class AuthEndpoints
             return await db.OAuthConfigs.AsNoTracking().Where(x => x.Platform == platform).AnyAsync();
         })
         .Produces<bool>()
-        .WithName("HasAuthConfig");
+        .WithName("HasAuthConfig")
+        .RequireAuthorization();
         
         builder.MapGet("/auth/login/youtube", async (
             [FromQuery] string tenantId,
@@ -154,34 +158,19 @@ public static class AuthEndpoints
             return Results.Ok($"YouTube successfully linked as a {role}! You can close this tab and return to the application.");
         });
 
-        builder.MapGet("/auth/profile", async ([FromServices] YouTubeCredentialService credentialService, [FromQuery] string tenantId, [FromQuery] Platform platform, [FromQuery] bool isBot) =>
+        builder.MapGet("/auth/profile", async ([FromServices] IServiceProvider serviceProvider, [FromQuery] Platform platform, [FromQuery] bool isBot) =>
         {
-            var client = await credentialService.GetClient(tenantId, isBot);
-            if (client == null) return Results.NotFound();
+            var profileService = serviceProvider.GetRequiredKeyedService<IProfileService>(platform);
+            var profile = await profileService.GetUserProfile(isBot);
             
-            var profileRequest = client.Channels.List((string[])["snippet", "id"]);
-            profileRequest.Mine = true;
-            
-            var result = await profileRequest.ExecuteAsync();
-            if (result == null) return Results.NotFound();
-            
-            var profile = result.Items.FirstOrDefault();
-            if(profile == null) return Results.NotFound();
-            
-            var userProfile = new UserProfile(profile.Snippet.Title, profile.Snippet.Thumbnails.Default__.Url,
-                profile.Id, profile.Snippet.CustomUrl);
-            
-            return Results.Json(userProfile);
+            return profile is not null 
+                ? Results.Json(profile) 
+                : Results.NotFound();
         })
         .Produces<UserProfile>()
-        .WithName("GetProfile");
+        .WithName("GetProfile")
+        .RequireAuthorization();
         
         return builder;
     }
-}
-
-[JsonConverter(typeof(UserProfile))]
-[JsonSerializable(typeof(ConnectUrlResponse))]
-public partial class AuthEndpointJsonContext : JsonSerializerContext
-{
 }

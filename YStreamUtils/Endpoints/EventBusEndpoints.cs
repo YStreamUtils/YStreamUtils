@@ -1,11 +1,12 @@
-﻿using System.Text.Json;
-using System.Threading.Channels;
+﻿using System.Threading.Channels;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using YStreamUtils.Core.Entities;
 using YStreamUtils.Core.Events;
 using YStreamUtils.Core.Models;
+using YStreamUtils.Extensions;
 
 namespace YStreamUtils.Endpoints;
 
@@ -13,9 +14,11 @@ public static class EventBusEndpoints
 {
     public static RouteGroupBuilder AddEventBusEndpoints(this RouteGroupBuilder groupBuilder)
     {
-        groupBuilder.MapPost("/events/invoke", async ([FromServices] IEventBus eventBus) =>
+        groupBuilder.MapPost("/events/invoke", async ([FromServices] IEventBus eventBus, [FromServices] IHttpContextAccessor httpContextAccessor) =>
             {
+                var tenantId = httpContextAccessor.GetTenantContext().TenantId;
                 var envelope = StreamEventEnvelope<object>.Create(
+                    tenantId,
                     StreamEventName.Chat,
                     Platform.YouTube
                 );
@@ -29,15 +32,16 @@ public static class EventBusEndpoints
         groupBuilder.MapGet("/events/listen", async (
                 HttpContext context,
                 IEventBus eventBus,
+                IHttpContextAccessor httpContextAccessor, 
                 CancellationToken cancellationToken) =>
             {
+                var currentTenantId = httpContextAccessor.GetTenantContext().TenantId;
+
                 context.Response.ContentType = "text/event-stream";
                 context.Response.Headers.Append("Cache-Control", "no-cache");
                 context.Response.Headers.Append("Connection", "keep-alive");
 
-                var responseStream = context.Response.BodyWriter;
-
-                var channel = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
+                var channel = Channel.CreateUnbounded<object>(new UnboundedChannelOptions
                 {
                     SingleReader = true
                 });
@@ -45,9 +49,12 @@ public static class EventBusEndpoints
                 var allEventKeys = Enum.GetValues<EventKey>();
                 var unsub = allEventKeys.Select(key => eventBus.Subscribe(key, async (payload, cbToken) =>
                     {
-                        var json = JsonSerializer.Serialize(payload, payload.GetType());
+                        if (payload is not ITenantEntity tenantEvent || tenantEvent.TenantId != currentTenantId)
+                        {
+                            return;
+                        }
 
-                        await channel.Writer.WriteAsync($"data: {json}\n\n", cbToken);
+                        await channel.Writer.WriteAsync(payload, cbToken);
                     }))
                     .ToList();
 
@@ -55,11 +62,14 @@ public static class EventBusEndpoints
                 {
                     while (await channel.Reader.WaitToReadAsync(cancellationToken))
                     {
-                        while (channel.Reader.TryRead(out var message))
+                        while (channel.Reader.TryRead(out var payload))
                         {
-                            var bytes = System.Text.Encoding.UTF8.GetBytes(message);
-                            await responseStream.WriteAsync(bytes, cancellationToken);
-                            await responseStream.FlushAsync(cancellationToken);
+                            await context.Response.WriteAsync("data: ", cancellationToken);
+                            
+                            await context.Response.WriteAsJsonAsync(payload, payload.GetType(), cancellationToken: cancellationToken);
+                            
+                            await context.Response.WriteAsync("\n\n", cancellationToken);
+                            await context.Response.Body.FlushAsync(cancellationToken);
                         }
                     }
                 }
@@ -70,10 +80,7 @@ public static class EventBusEndpoints
                 {
                     channel.Writer.Complete();
 
-                    foreach (var unsubAction in unsub)
-                    {
-                        unsubAction();
-                    }
+                    foreach (var unsubAction in unsub) unsubAction();
                 }
             })
             .WithName("ListenToGlobalEventBusStream");

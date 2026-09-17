@@ -3,4 +3,9 @@
 public interface ITenantEntity
 {
     public string TenantId { get; set; }
+    
+    public void SetTenantId(string tenantId)
+    {
+        TenantId = tenantId;
+    }
 }

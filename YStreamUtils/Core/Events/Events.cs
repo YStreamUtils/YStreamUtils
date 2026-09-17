@@ -1,39 +1,33 @@
 ﻿using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
+using YStreamUtils.Core.Entities;
+using YStreamUtils.Core.Models;
 
-namespace YStreamUtils.Core.Models;
+namespace YStreamUtils.Core.Events;
 
 [JsonConverter(typeof(JsonStringEnumConverter<StreamEventName>))]
 public enum StreamEventName
 {
-    [EnumMember(Value = "chat")]
-    Chat,
-    
-    [EnumMember(Value = "superchat")]
-    Superchat,
-    
-    [EnumMember(Value = "cheer")]
-    Cheer
+    [EnumMember(Value = "chat")] Chat,
+    [EnumMember(Value = "superchat")] Superchat,
+    [EnumMember(Value = "cheer")] Cheer
 }
-public record EmptyStruct;
 
-public record StreamEventEnvelope<T>
+public readonly record struct EmptyStruct;
+
+public record StreamEventEnvelope<T> : ITenantEntity
 {
-    [JsonPropertyName("event")]
+    public required string TenantId { get; set; }
     public StreamEventName Event { get; init; }
-
-    [JsonPropertyName("platform")]
     public Platform Platform { get; init; }
-
-    [JsonPropertyName("timestamp")]
+    
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DateTime? Timestamp { get; init; }
+    public T? Data { get; init; }
 
-    [JsonPropertyName("data")]
-    public T? Data { get; init; } = default;
-
-    public static StreamEventEnvelope<T> Create(StreamEventName eventName, Platform platform, T? data = default) => new()
+    public static StreamEventEnvelope<T> Create(string tenantId, StreamEventName eventName, Platform platform, T? data = default) => new()
     {
+        TenantId = tenantId,
         Event = eventName,
         Platform = platform,
         Timestamp = DateTime.UtcNow,
@@ -41,38 +35,28 @@ public record StreamEventEnvelope<T>
     };
 }
 
-public record BaseUserData(
-    [property: JsonPropertyName("authorId")] string AuthorId,
-    [property: JsonPropertyName("author")] string Author,
-    [property: JsonPropertyName("authorColor")] string AuthorColor,
-    [property: JsonPropertyName("messageId")] string MessageId,
-    [property: JsonPropertyName("message")] string Message
+public readonly record struct BaseUserData(
+    string AuthorId,
+    string Author,
+    string AuthorColor
 );
 
-public record StreamChatMessageEvent(
-    string AuthorId,
-    string Author,
-    string AuthorColor,
+public readonly record struct StreamChatMessageEvent(
+    BaseUserData User,
     string MessageId,
     string Message,
-    [property: JsonPropertyName("liveChatId")] string LiveChatId
-) : BaseUserData(AuthorId, Author, AuthorColor, MessageId, Message);
+    string LiveChatId
+);
 
-public record StreamSuperChatMessageEvent(
-    string AuthorId,
-    string Author,
-    string AuthorColor,
+public readonly record struct StreamSuperChatMessageEvent(
+    BaseUserData User,
     string MessageId,
     string Message,
     string LiveChatId,
-    [property: JsonPropertyName("amount")] string Amount
-) : StreamChatMessageEvent(AuthorId, Author, AuthorColor, MessageId, Message, LiveChatId);
+    string Amount
+);
 
-public record StreamCheerMessageEvent(
-    string AuthorId,
-    string Author,
-    string AuthorColor,
-    string MessageId,
-    string Message,
-    [property: JsonPropertyName("bits")] long Bits
-) : BaseUserData(AuthorId, Author, AuthorColor, MessageId, Message);
+public readonly record struct StreamCheerMessageEvent(
+    BaseUserData User,
+    long Bits
+);

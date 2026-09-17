@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Photino.NET;
 using YStreamUtils.Core.Data;
+using YStreamUtils.Core.Services;
 using YStreamUtils.Extensions;
 
 namespace YStreamUtils.Desktop;
@@ -14,11 +16,20 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (EF.IsDesignTime)
+        {
+            return;
+        }
+        
         _ = Task.Run(async () =>
         {
             var builder = WebApplication.CreateSlimBuilder(args);
             builder.WebHost.UseUrls(KestrelUrl);
             builder.Services.AddYStreamUtils();
+
+            builder.Services.AddDbContext<SqliteDbContext>();
+            builder.Services.AddScoped<AppDbContext>(sp => sp.GetRequiredService<SqliteDbContext>());
+            builder.Services.AddScoped<TenantContext>();
 
             var app = builder.Build();
 
@@ -34,7 +45,26 @@ internal static class Program
                 app.UseStaticFiles();
             }
 
+            app.Use(async (context, next) =>
+            {
+                if (context.User?.Identity?.IsAuthenticated != true)
+                {
+                    var claims = new[] {
+                        new Claim(ClaimTypes.NameIdentifier, "local-desktop-user"),
+                        new Claim(ClaimTypes.Name, "Desktop"),
+                        new Claim(ClaimTypes.Role, "Admin")
+                    };
+            
+                    var identity = new ClaimsIdentity(claims, "DesktopAuth");
+                    context.User = new ClaimsPrincipal(identity);
+                }
+                await next();
+            });
+            app.UseAuthentication();
+            app.UseAuthorization();
+            
             app.UseDefaultEndpoints();
+            
             Console.WriteLine($"[YStreamUtils] Launching web host on {KestrelUrl}");
 
             await app.RunAsync();
