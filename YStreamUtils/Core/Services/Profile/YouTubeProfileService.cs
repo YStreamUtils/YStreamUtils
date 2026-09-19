@@ -14,7 +14,6 @@ public class YouTubeProfileService(YouTubeCredentialService credentialService, I
         {
             var tenantId = httpContextAccessor.GetTenantContext().TenantId;
             var client = await credentialService.GetClient(tenantId, isBot);
-            if (client == null) return null;
 
             var profileRequest = client.Channels.List((string[])["snippet", "id"]);
             profileRequest.Mine = true;

@@ -15,7 +15,7 @@ public static class ApplicationEnvironment
         {
             return ApplicationPlatform.Docker;
         }
-
+        
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             return ApplicationPlatform.Windows;

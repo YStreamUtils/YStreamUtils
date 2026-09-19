@@ -1,14 +1,14 @@
 ﻿using Google.Apis.Util.Store;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
-using System.Text.Json; // 🚀 Required for JsonNamingPolicy
-using YStreamUtils.Core.Data;
-using YStreamUtils.Core.Entities;
+using System.Text.Json;
 using YStreamUtils.Core.Events;
 using YStreamUtils.Core.Models;
 using YStreamUtils.Core.Services;
+using YStreamUtils.Core.Services.Chat;
+using YStreamUtils.Core.Services.Metrics;
+using YStreamUtils.Core.Services.Profile;
 using YStreamUtils.Core.Services.YouTube;
-using YStreamUtils.Endpoints;
 
 namespace YStreamUtils.Extensions;
 
@@ -39,12 +39,16 @@ public static class ServiceExtensions
         serviceCollection.AddSingleton<PluginService>();
         serviceCollection.AddSingleton<ScriptsService>();
         serviceCollection.AddSingleton<SettingsService>();
-        
-        serviceCollection.AddSingleton<YouTubeStreamManager>();
-        serviceCollection.AddSingleton<YouTubeChatService>();
 
+        serviceCollection.AddSingleton<MetricsManager>();
+        serviceCollection.AddKeyedScoped<IMetricsService, YouTubeMetricsService>(Platform.YouTube);
+        
+        serviceCollection.AddSingleton<ChatManager>();
+        serviceCollection.AddKeyedScoped<IChatService, YouTubeChatService>(Platform.YouTube);
+        
+        serviceCollection.AddKeyedScoped<IProfileService, YouTubeProfileService>(Platform.YouTube);
+        
         serviceCollection.AddScoped<IDataStore, DbDataStore>();
-        serviceCollection.AddScoped<YouTubeStreamService>();
         serviceCollection.AddScoped<YouTubeCredentialService>();
         
         serviceCollection.AddScoped<TenantContext>();

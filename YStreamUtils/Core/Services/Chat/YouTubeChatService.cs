@@ -1,58 +1,65 @@
-﻿using static Youtube.Api.V3.LiveChatMessageSnippet.Types.TypeWrapper.Types;
-using Grpc.Core;
+﻿using Grpc.Core;
 using Grpc.Net.Client;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Youtube.Api.V3;
 using YStreamUtils.Core.Events;
+using YStreamUtils.Core.Exceptions;
 using YStreamUtils.Core.Models;
+using YStreamUtils.Core.Services.YouTube;
+using YStreamUtils.Extensions;
 
 
-namespace YStreamUtils.Core.Services.YouTube;
+namespace YStreamUtils.Core.Services.Chat;
 
 public class YouTubeChatService(
     IServiceProvider serviceProvider,
     IEventBus eventBus,
     YouTubeStreamManager streamManager,
-    ILogger<YouTubeChatService> logger)
+    IHttpContextAccessor httpContextAccessor,
+    ILogger<YouTubeChatService> logger) : IChatService
 {
-    private async Task<string?> GetChatId(string tenantId, string videoId, bool isBot, CancellationToken token)
+    private async Task<string?> GetChatId(string tenantId, string videoId, CancellationToken token)
     {
         using var scope = serviceProvider.CreateScope();
         var client = await scope.ServiceProvider.GetRequiredService<YouTubeCredentialService>()
-            .GetClient(tenantId, isBot);
-        if (client == null) return null;
+            .GetClient(tenantId, false);
+        if (client == null) throw new Exception("YouTube credential not found");
 
         var req = client.Videos.List("liveStreamingDetails");
         req.Id = videoId;
 
         var res = await req.ExecuteAsync(token);
-        return res.Items?.FirstOrDefault()?.LiveStreamingDetails?.ActiveLiveChatId;
+        return res.Items.Count == 0
+            ? throw new StreamNotFoundException("Aborting stream setup: No streams listed on account.")
+            : res.Items?.FirstOrDefault()?.LiveStreamingDetails?.ActiveLiveChatId;
     }
 
-    public async Task StartStream(string tenantId, string videoId, bool isBot, CancellationToken token = default)
+    public async Task StartChatStream(string videoId, CancellationToken token = default)
     {
+        var tenantId = httpContextAccessor.GetTenantContext().TenantId;
         if (streamManager.IsStreamRunning(tenantId, videoId)) return;
 
-        var chatId = await GetChatId(tenantId, videoId, isBot, token);
+        var chatId = await GetChatId(tenantId, videoId, token);
         if (string.IsNullOrEmpty(chatId))
         {
-            logger.LogWarning("Aborting stream setup: No active chat ID found for video {VideoId}.", videoId);
-            return;
+            throw new ChatNotFoundException($"Aborting stream setup: No active chat ID found for video {videoId}.");
         }
 
         var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
         streamManager.RegisterStream(tenantId, videoId, cts);
 
-        _ = Task.Run(() => RunStreamLoopAsync(tenantId, chatId, isBot, cts.Token), cts.Token);
+        _ = Task.Run(() => RunStreamLoopAsync(tenantId, chatId, cts.Token), cts.Token);
     }
 
-    public void StopStream(string tenantId, string videoId)
+    public void StopChatStream(string videoId)
     {
+        var tenantId = httpContextAccessor.GetTenantContext().TenantId;
         streamManager.UnregisterStream(tenantId, videoId);
     }
 
-    private async Task RunStreamLoopAsync(string tenantId, string chatId, bool isBot, CancellationToken token)
+    private async Task RunStreamLoopAsync(string tenantId, string chatId, CancellationToken token)
     {
         logger.LogInformation("Starting YouTube stream loop for Tenant: {TenantId}, Chat: {ChatId}", tenantId, chatId);
         string? nextPageToken = null;
@@ -64,13 +71,7 @@ public class YouTubeChatService(
                 using var scope = serviceProvider.CreateScope();
                 var credentialService = scope.ServiceProvider.GetRequiredService<YouTubeCredentialService>();
 
-                var credential = await credentialService.GetClient(tenantId, isBot);
-                if (credential == null)
-                {
-                    logger.LogWarning("Missing client credentials for Tenant {TenantId}. Retrying in 30s...", tenantId);
-                    await Task.Delay(30000, token);
-                    continue;
-                }
+                var credential = await credentialService.GetClient(tenantId, false);
 
                 if (credential.HttpClientInitializer is not Google.Apis.Auth.OAuth2.UserCredential userCred)
                 {
@@ -126,7 +127,6 @@ public class YouTubeChatService(
 
                                 var envelope = StreamEventEnvelope<StreamSuperChatMessageEvent>.Create(
                                     tenantId,
-                                    StreamEventName.Superchat,
                                     Platform.YouTube,
                                     superchatData
                                 );
@@ -147,7 +147,6 @@ public class YouTubeChatService(
 
                                 var envelope = StreamEventEnvelope<StreamChatMessageEvent>.Create(
                                     tenantId,
-                                    StreamEventName.Chat,
                                     Platform.YouTube,
                                     chatData
                                 );

@@ -19,7 +19,6 @@ public static class EventBusEndpoints
                 var tenantId = httpContextAccessor.GetTenantContext().TenantId;
                 var envelope = StreamEventEnvelope<object>.Create(
                     tenantId,
-                    StreamEventName.Chat,
                     Platform.YouTube
                 );
 

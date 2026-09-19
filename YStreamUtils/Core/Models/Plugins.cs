@@ -1,6 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using JetBrains.Annotations;
 
 namespace YStreamUtils.Core.Models;
 
@@ -38,19 +37,21 @@ public class PluginManifest
     public required DocumentationConfig Documentation { get; init; }
 }
 
-[UsedImplicitly]
+// ReSharper disable once ClassNeverInstantiated.Global
 public class SourceConfig
 {
     [Required]
     [JsonPropertyName("repository")]
+    // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public required string Repository { get; init; }
 
     [Required]
     [JsonPropertyName("owner")]
+    // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public required string Owner { get; init; }
 }
 
-[UsedImplicitly]
+// ReSharper disable once ClassNeverInstantiated.Global
 public class DocumentationConfig
 {
     [Required]

@@ -19,6 +19,7 @@ public static class EndpointExtensions
         apiGroup.AddEventBusEndpoints();
         apiGroup.AddAuthEndpoints();
         apiGroup.AddEnvironmentEndpoints();
+        apiGroup.AddStreamsServices();
 
         apiGroup.MapGet("/health", () => Results.Ok(new { Status = "Healthy" }));
         apiGroup.MapGet("/version", () => Results.Ok(new { Assembly.GetExecutingAssembly().GetName().Version }));

@@ -1,14 +1,4 @@
 <script lang="ts">
-  import Expander from '../components/base/Expander.svelte';
-  import ColorPicker from '../components/ColorPicker.svelte';
-  import { User, Palette } from '@lucide/svelte';
-  import ThemeDropdown from '../components/ThemeDropdown.svelte';
-  import SettingsRow from '../components/SettingsRow.svelte';
-  import ConnectedAccount from '../components/ConnectedAccount.svelte';
-  import * as auth from '../state/auth.svelte';
-  import Card from '../components/base/Card.svelte';
-  import Input from '../components/base/Input.svelte';
-  import Button from '../components/base/Button.svelte';
   import { Platform } from '$lib/api';
   import { getSettingsState } from '$lib/state/settings.svelte';
 

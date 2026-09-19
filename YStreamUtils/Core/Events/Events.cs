@@ -9,8 +9,8 @@ namespace YStreamUtils.Core.Events;
 public enum StreamEventName
 {
     [EnumMember(Value = "chat")] Chat,
-    [EnumMember(Value = "superchat")] Superchat,
-    [EnumMember(Value = "cheer")] Cheer
+    [EnumMember(Value = "superchat")] SuperChat,
+    [EnumMember(Value = "cheer")] Cheer,
 }
 
 public readonly record struct EmptyStruct;
@@ -18,17 +18,15 @@ public readonly record struct EmptyStruct;
 public record StreamEventEnvelope<T> : ITenantEntity
 {
     public required string TenantId { get; set; }
-    public StreamEventName Event { get; init; }
     public Platform Platform { get; init; }
     
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DateTime? Timestamp { get; init; }
     public T? Data { get; init; }
 
-    public static StreamEventEnvelope<T> Create(string tenantId, StreamEventName eventName, Platform platform, T? data = default) => new()
+    public static StreamEventEnvelope<T> Create(string tenantId, Platform platform, T? data = default) => new()
     {
         TenantId = tenantId,
-        Event = eventName,
         Platform = platform,
         Timestamp = DateTime.UtcNow,
         Data = data
@@ -60,3 +58,5 @@ public readonly record struct StreamCheerMessageEvent(
     BaseUserData User,
     long Bits
 );
+
+public readonly record struct StreamMetricsEvent(string Viewers);

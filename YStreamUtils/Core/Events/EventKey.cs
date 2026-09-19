@@ -16,5 +16,7 @@ public enum EventKey
     YoutubeSuperChat,
 
     // [JsonStringEnumMemberName("app:log")]
-    ApplicationLog
+    ApplicationLog,
+    
+    StreamMetrics
 }
