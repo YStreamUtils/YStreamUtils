@@ -6,14 +6,13 @@ using YStreamUtils.Extensions;
 
 namespace YStreamUtils.Core.Services.Profile;
 
-public class YouTubeProfileService(YouTubeCredentialService credentialService, IHttpContextAccessor httpContextAccessor, ILogger<YouTubeProfileService> logger) : IProfileService
+public class YouTubeProfileService(YouTubeCredentialService credentialService, ILogger<YouTubeProfileService> logger) : IProfileService
 {
     public async Task<UserProfile?> GetUserProfile(bool isBot)
     {
         try
         {
-            var tenantId = httpContextAccessor.GetTenantContext().TenantId;
-            var client = await credentialService.GetClient(tenantId, isBot);
+            var client = await credentialService.GetClient(isBot);
 
             var profileRequest = client.Channels.List((string[])["snippet", "id"]);
             profileRequest.Mine = true;

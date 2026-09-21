@@ -16,15 +16,16 @@ namespace YStreamUtils.Core.Services.Chat;
 public class YouTubeChatService(
     IServiceProvider serviceProvider,
     IEventBus eventBus,
-    YouTubeStreamManager streamManager,
-    IHttpContextAccessor httpContextAccessor,
+    ChatManager chatManager,
     ILogger<YouTubeChatService> logger) : IChatService
 {
-    private async Task<string?> GetChatId(string tenantId, string videoId, CancellationToken token)
+
+    private const Platform CurrentPlatform = Platform.YouTube;
+    private async Task<string?> GetChatId(string videoId, CancellationToken token)
     {
         using var scope = serviceProvider.CreateScope();
         var client = await scope.ServiceProvider.GetRequiredService<YouTubeCredentialService>()
-            .GetClient(tenantId, false);
+            .GetClient(false);
         if (client == null) throw new Exception("YouTube credential not found");
 
         var req = client.Videos.List("liveStreamingDetails");
@@ -38,30 +39,28 @@ public class YouTubeChatService(
 
     public async Task StartChatStream(string videoId, CancellationToken token = default)
     {
-        var tenantId = httpContextAccessor.GetTenantContext().TenantId;
-        if (streamManager.IsStreamRunning(tenantId, videoId)) return;
+        if (chatManager.IsChatStreamRunning(CurrentPlatform, videoId)) return;
 
-        var chatId = await GetChatId(tenantId, videoId, token);
+        var chatId = await GetChatId(videoId, token);
         if (string.IsNullOrEmpty(chatId))
         {
             throw new ChatNotFoundException($"Aborting stream setup: No active chat ID found for video {videoId}.");
         }
 
         var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-        streamManager.RegisterStream(tenantId, videoId, cts);
+        chatManager.RegisterChatStream(CurrentPlatform, videoId, cts);
 
-        _ = Task.Run(() => RunStreamLoopAsync(tenantId, chatId, cts.Token), cts.Token);
+        _ = Task.Run(() => RunStreamLoopAsync(chatId, cts.Token), cts.Token);
     }
 
     public void StopChatStream(string videoId)
     {
-        var tenantId = httpContextAccessor.GetTenantContext().TenantId;
-        streamManager.UnregisterStream(tenantId, videoId);
+        chatManager.UnregisterChatStream(CurrentPlatform, videoId);
     }
 
-    private async Task RunStreamLoopAsync(string tenantId, string chatId, CancellationToken token)
+    private async Task RunStreamLoopAsync(string chatId, CancellationToken token)
     {
-        logger.LogInformation("Starting YouTube stream loop for Tenant: {TenantId}, Chat: {ChatId}", tenantId, chatId);
+        logger.LogInformation("Starting YouTube stream loop for Chat: {ChatId}", chatId);
         string? nextPageToken = null;
 
         while (!token.IsCancellationRequested)
@@ -71,12 +70,12 @@ public class YouTubeChatService(
                 using var scope = serviceProvider.CreateScope();
                 var credentialService = scope.ServiceProvider.GetRequiredService<YouTubeCredentialService>();
 
-                var credential = await credentialService.GetClient(tenantId, false);
+                var credential = await credentialService.GetClient(false);
 
                 if (credential.HttpClientInitializer is not Google.Apis.Auth.OAuth2.UserCredential userCred)
                 {
                     logger.LogWarning(
-                        "Credentials for Tenant {TenantId} are not a valid UserCredential mapping instance.", tenantId);
+                        "Credentials are not a valid UserCredential mapping instance.");
                     await Task.Delay(30000, token);
                     continue;
                 }
@@ -126,7 +125,6 @@ public class YouTubeChatService(
                                 );
 
                                 var envelope = StreamEventEnvelope<StreamSuperChatMessageEvent>.Create(
-                                    tenantId,
                                     Platform.YouTube,
                                     superchatData
                                 );
@@ -146,7 +144,6 @@ public class YouTubeChatService(
                                 );
 
                                 var envelope = StreamEventEnvelope<StreamChatMessageEvent>.Create(
-                                    tenantId,
                                     Platform.YouTube,
                                     chatData
                                 );
@@ -163,17 +160,17 @@ public class YouTubeChatService(
             }
             catch (RpcException rpcEx) when (rpcEx.StatusCode == StatusCode.Unauthenticated)
             {
-                logger.LogWarning("Stream connection unauthenticated for tenant {TenantId}. Refreshing token...",
-                    tenantId);
+                logger.LogWarning("Stream connection unauthenticated for chat {ChatId}. Refreshing token...",
+                    chatId);
                 await Task.Delay(2000, token);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                logger.LogError(ex, "Streaming error on Tenant {TenantId}. Reconnecting in 5s...", tenantId);
+                logger.LogError(ex, "Streaming error on Chat {ChatId}. Reconnecting in 5s...", chatId);
                 await Task.Delay(5000, token);
             }
         }
 
-        logger.LogInformation("Successfully shut down stream thread for Tenant: {TenantId}", tenantId);
+        logger.LogInformation("Successfully shut down stream thread for Chat: {ChatId}", chatId);
     }
 }

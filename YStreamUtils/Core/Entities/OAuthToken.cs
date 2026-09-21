@@ -1,22 +1,16 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations.Schema;
 using YStreamUtils.Core.Models;
 
 namespace YStreamUtils.Core.Entities;
 
-[PrimaryKey(nameof(Platform), nameof(IsBot))]
-public class OAuthToken : ITenantEntity
+public class OAuthToken
 {
-    [Required]
-    [MaxLength(50)]
-    public Platform Platform { get; set; } = Platform.YouTube;
+    [Key] public string TokenId { get; set; } = Guid.NewGuid().ToString("N");
 
-    public bool IsBot { get; set; }
+    [Required] public Platform Platform { get; set; } = Platform.YouTube;
 
-    [Required]
-    public string TokenJson { get; set; } = string.Empty;
+    [Required] public bool IsBotAccount { get; set; }
 
-    public string TenantId { get; set; }  = string.Empty;
+    [Required] public string TokenJson { get; set; } = string.Empty;
 }
-

@@ -10,7 +10,7 @@ using YStreamUtils.Core.Data;
 namespace YStreamUtils.Core.Data.Migrations.Sqlite
 {
     [DbContext(typeof(SqliteDbContext))]
-    [Migration("20260917163936_Initial_sqlite")]
+    [Migration("20260920215707_Initial_sqlite")]
     partial class Initial_sqlite
     {
         /// <inheritdoc />
@@ -18,6 +18,20 @@ namespace YStreamUtils.Core.Data.Migrations.Sqlite
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
+
+            modelBuilder.Entity("YStreamUtils.Core.Entities.Cache", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("Caches");
+                });
 
             modelBuilder.Entity("YStreamUtils.Core.Entities.OAuthConfig", b =>
                 {
@@ -32,10 +46,6 @@ namespace YStreamUtils.Core.Data.Migrations.Sqlite
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Platform");
 
                     b.ToTable("OAuthConfigs");
@@ -43,22 +53,20 @@ namespace YStreamUtils.Core.Data.Migrations.Sqlite
 
             modelBuilder.Entity("YStreamUtils.Core.Entities.OAuthToken", b =>
                 {
-                    b.Property<int>("Platform")
-                        .HasMaxLength(50)
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsBot")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("TenantId")
-                        .IsRequired()
+                    b.Property<string>("TokenId")
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsBotAccount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Platform")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("TokenJson")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.HasKey("Platform", "IsBot");
+                    b.HasKey("TokenId");
 
                     b.ToTable("OAuthTokens");
                 });
@@ -72,10 +80,6 @@ namespace YStreamUtils.Core.Data.Migrations.Sqlite
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Source")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("TenantId")
                         .IsRequired()
                         .HasColumnType("TEXT");
 

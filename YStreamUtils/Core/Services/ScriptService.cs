@@ -4,8 +4,10 @@ using Acornima.Ast;
 using Jint;
 using Jint.Native;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using YStreamUtils.Core.Bridges;
+using YStreamUtils.Core.Data;
 using YStreamUtils.Core.Entities;
 using YStreamUtils.Core.Events;
 using YStreamUtils.Core.Models;
@@ -24,8 +26,8 @@ public class CompiledScript
 public partial class ScriptsService(
     ILogger<ScriptsService> logger,
     IEventBus eventBus,
-    IHttpContextAccessor httpContextAccessor,
-    PluginService pluginService)
+    PluginService pluginService,
+    IServiceProvider serviceProvider)
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly Dictionary<string, CompiledPlugin> _cachedPlugins = new();
@@ -101,15 +103,9 @@ public partial class ScriptsService(
             var detectedPlugins = matches.Select(m => m.Groups[1].Value).Distinct().ToList();
             logger.LogDebug("Found {DetectedPluginsCount} plugins", detectedPlugins.Count);
 
-            var currentTenantId = httpContextAccessor.GetTenantContext().TenantId;
 
             var unsubscribingAction = eventBus.Subscribe(topic, async (payload, cancellationToken) =>
             {
-                
-                if (payload is not ITenantEntity tenantEvent || tenantEvent.TenantId != currentTenantId)
-                {
-                    return;
-                }
                 
                 var vm = new Engine(options =>
                 {
@@ -146,7 +142,7 @@ public partial class ScriptsService(
                             logger.Log(ParseLogLevel(level), "[Script: {ScriptId}] {Message}", scriptId, msg);
                         })));
 
-                var cacheBridge = _caches.GetOrAdd(scriptId, id => new CacheBridge(id));
+                var cacheBridge = _caches.GetOrAdd(scriptId, id => new CacheBridge(id, serviceProvider.GetRequiredService<AppDbContext>()));
                 cacheBridge.Register(vm, userHost);
 
                 vm.SetValue("host", (JsValue)userHost);

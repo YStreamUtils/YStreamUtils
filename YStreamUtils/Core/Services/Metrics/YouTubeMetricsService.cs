@@ -9,7 +9,6 @@ namespace YStreamUtils.Core.Services.Metrics;
 
 public class YouTubeMetricsService(
     ILogger<YouTubeMetricsService> logger,
-    IHttpContextAccessor contextAccessor,
     MetricsManager metricsManager,
     YouTubeCredentialService credentialService,
     IEventBus eventBus) : IMetricsService
@@ -18,23 +17,22 @@ public class YouTubeMetricsService(
 
     public async Task StartMetricStream(string videoId, CancellationToken token = default)
     {
-        var tenantId = contextAccessor.GetTenantContext().TenantId;
 
-        if (metricsManager.IsMetricsStreamRunning(tenantId, CurrentPlatform, videoId))
+        if (metricsManager.IsMetricsStreamRunning(CurrentPlatform, videoId))
         {
-            logger.LogWarning("Metric stream for YouTube video {VideoId} under Tenant {TenantId} is already running.",
-                videoId, tenantId);
+            logger.LogWarning("Metric stream for YouTube video {VideoId} is already running.",
+                videoId);
             return;
         }
 
         var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-        metricsManager.RegisterMetricsStream(tenantId, CurrentPlatform, videoId, cts);
+        metricsManager.RegisterMetricsStream(CurrentPlatform, videoId, cts);
 
         _ = Task.Run(async () =>
         {
             using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
-            logger.LogInformation("Started YouTube metric background loop for video {VideoId} (Tenant: {TenantId})",
-                videoId, tenantId);
+            logger.LogInformation("Started YouTube metric background loop for video {VideoId}.",
+                videoId);
 
             try
             {
@@ -42,7 +40,7 @@ public class YouTubeMetricsService(
                 {
                     try
                     {
-                        var client = await credentialService.GetClient(tenantId, false);
+                        var client = await credentialService.GetClient(false);
                         var request = client.Videos.List("liveStreamingDetails");
                         request?.Id = videoId;
 
@@ -54,7 +52,7 @@ public class YouTubeMetricsService(
                         var data = new StreamMetricsEvent(
                             videoItem.LiveStreamingDetails.ConcurrentViewers.ToString() ?? "undefined");
                         var envelope =
-                            StreamEventEnvelope<StreamMetricsEvent>.Create(tenantId, CurrentPlatform, data);
+                            StreamEventEnvelope<StreamMetricsEvent>.Create(CurrentPlatform, data);
                         await eventBus.PublishAsync(EventKey.StreamMetrics, envelope, cancellationToken: cts.Token);
                     }
                     catch (Exception ex)
@@ -76,7 +74,7 @@ public class YouTubeMetricsService(
             }
             finally
             {
-                metricsManager.UnregisterMetricsStream(tenantId, CurrentPlatform, videoId);
+                metricsManager.UnregisterMetricsStream(CurrentPlatform, videoId);
             }
         }, token);
 
@@ -85,8 +83,7 @@ public class YouTubeMetricsService(
 
     public Task StopMetricStream(string videoId)
     {
-        var tenantId = contextAccessor.GetTenantContext().TenantId;
-        metricsManager.UnregisterMetricsStream(tenantId, CurrentPlatform, videoId);
+        metricsManager.UnregisterMetricsStream(CurrentPlatform, videoId);
 
         logger.LogInformation("Stop request sent to MetricsManager for YouTube video {VideoId}.", videoId);
         return Task.CompletedTask;

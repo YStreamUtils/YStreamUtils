@@ -13,38 +13,38 @@ public enum StreamEventName
     [EnumMember(Value = "cheer")] Cheer,
 }
 
-public readonly record struct EmptyStruct;
+public interface IStreamEventData { }
 
-public record StreamEventEnvelope<T> : ITenantEntity
-{
-    public required string TenantId { get; set; }
+public record StreamEventEnvelope<T>
+{ 
     public Platform Platform { get; init; }
     
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DateTime? Timestamp { get; init; }
     public T? Data { get; init; }
 
-    public static StreamEventEnvelope<T> Create(string tenantId, Platform platform, T? data = default) => new()
+    public static StreamEventEnvelope<T> Create(Platform platform, T? data = default) => new()
     {
-        TenantId = tenantId,
         Platform = platform,
         Timestamp = DateTime.UtcNow,
         Data = data
     };
 }
 
+public readonly record struct EmptyStruct : IStreamEventData;
+
 public readonly record struct BaseUserData(
     string AuthorId,
     string Author,
     string AuthorColor
-);
+) : IStreamEventData;
 
 public readonly record struct StreamChatMessageEvent(
     BaseUserData User,
     string MessageId,
     string Message,
     string LiveChatId
-);
+) : IStreamEventData;
 
 public readonly record struct StreamSuperChatMessageEvent(
     BaseUserData User,
@@ -52,11 +52,11 @@ public readonly record struct StreamSuperChatMessageEvent(
     string Message,
     string LiveChatId,
     string Amount
-);
+) : IStreamEventData;
 
 public readonly record struct StreamCheerMessageEvent(
     BaseUserData User,
     long Bits
-);
+) : IStreamEventData;
 
-public readonly record struct StreamMetricsEvent(string Viewers);
+public readonly record struct StreamMetricsEvent(string Viewers) : IStreamEventData;

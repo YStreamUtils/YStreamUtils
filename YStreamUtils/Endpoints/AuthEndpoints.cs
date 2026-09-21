@@ -20,7 +20,7 @@ using YStreamUtils.Core.Services.YouTube;
 
 namespace YStreamUtils.Endpoints;
 
-public record OAuthConfigInput(string TenantId, Platform Platform, string ClientId, string ClientSecret);
+public record OAuthConfigInput(Platform Platform, string ClientId, string ClientSecret);
 public record ConnectUrlResponse(string Url);
 public record UserProfile(
     [property: JsonPropertyName("displayName")] string DisplayName,
@@ -70,8 +70,7 @@ public static class AuthEndpoints
             return await db.OAuthConfigs.AsNoTracking().Where(x => x.Platform == platform).AnyAsync();
         })
         .Produces<bool>()
-        .WithName("HasAuthConfig")
-        .RequireAuthorization();
+        .WithName("HasAuthConfig");
         
         builder.MapGet("/auth/login/youtube", async (
             [FromQuery] string tenantId,
@@ -158,19 +157,19 @@ public static class AuthEndpoints
             return Results.Ok($"YouTube successfully linked as a {role}! You can close this tab and return to the application.");
         });
 
-        builder.MapGet("/auth/profile", async ([FromServices] IServiceProvider serviceProvider, [FromQuery] Platform platform, [FromQuery] bool isBot) =>
-        {
-            var profileService = serviceProvider.GetRequiredKeyedService<IProfileService>(platform);
-            var profile = await profileService.GetUserProfile(isBot);
-            
-            return profile is not null 
-                ? Results.Json(profile) 
-                : Results.NotFound();
-        })
-        .Produces<UserProfile>()
-        .WithName("GetProfile")
-        .RequireAuthorization();
-        
+        builder.MapGet("/auth/profile",
+                async ([FromServices] IServiceProvider serviceProvider, [FromQuery] Platform platform,
+                    [FromQuery] bool isBot) =>
+                {
+                    var profileService = serviceProvider.GetRequiredKeyedService<IProfileService>(platform);
+                    var profile = await profileService.GetUserProfile(isBot);
+
+                    return profile is not null
+                        ? Results.Json(profile)
+                        : Results.NotFound();
+                })
+            .Produces<UserProfile>()
+            .WithName("GetProfile");
         return builder;
     }
 }

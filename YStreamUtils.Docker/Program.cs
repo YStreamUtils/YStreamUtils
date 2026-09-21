@@ -13,13 +13,7 @@ builder.WebHost.UseUrls(kestrelUrl);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
-builder.Services.AddYStreamUtils();
-
-builder.Services.AddScoped<TenantContext>(sp =>
-{
-    var httpAccessor = sp.GetRequiredService<IHttpContextAccessor>();
-    return new TenantContext(httpAccessor, fallbackTenant: "UNAUTHORIZED_WEB_REQUEST");
-});
+builder.AddYStreamUtils();
 
 if (config["Database:Provider"] == "postgres")
 {
@@ -45,9 +39,6 @@ else
     app.UseDefaultFiles();
     app.UseStaticFiles();
 }
-
-app.UseAuthentication();
-app.UseAuthorization();
 
 
 

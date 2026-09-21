@@ -12,13 +12,12 @@ namespace YStreamUtils.Core.Services.YouTube;
 
 public class YouTubeCredentialService(AppDbContext db, IDataStore dataStore, ILogger<YouTubeCredentialService> logger)
 {
-    private async Task<UserCredential> GetCredential(string tenantId, bool isBot)
+    private async Task<UserCredential> GetCredential(bool isBot)
     {
         var settings = await AuthEndpoints.GetConfigByPlatformQuery(db, Platform.YouTube);
 
         if (settings == null || string.IsNullOrEmpty(settings.ClientId) || string.IsNullOrEmpty(settings.ClientSecret))
         {
-            logger.LogWarning("Skipping tenant {TenantId}: Missing Client configuration.", tenantId);
             throw new Exception("Missing Client configuration.");
         }
 
@@ -30,14 +29,14 @@ public class YouTubeCredentialService(AppDbContext db, IDataStore dataStore, ILo
             DataStore = dataStore
         });
         var userType = isBot ? "bot" : "user";
-        var storageKey = $"{tenantId}-{userType}";
+        var storageKey = $"{userType}";
         var token = await flow.LoadTokenAsync(storageKey, CancellationToken.None);
         return token != null ? new UserCredential(flow, storageKey, token) : throw new Exception("Invalid token");
     }
 
-    public async Task<YouTubeService> GetClient(string tenantId, bool isBot)
+    public async Task<YouTubeService> GetClient(bool isBot)
     {
-        var credential = await GetCredential(tenantId, isBot);
+        var credential = await GetCredential(isBot);
         return new YouTubeService(new BaseClientService.Initializer
         {
             HttpClientInitializer = credential,

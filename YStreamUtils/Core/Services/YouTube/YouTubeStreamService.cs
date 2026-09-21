@@ -3,42 +3,38 @@ using Microsoft.Extensions.Logging;
 
 namespace YStreamUtils.Core.Services.YouTube;
 
+public record struct YouTubeStreamInfo(string VideoId, string LiveChatId);
+
 public class YouTubeStreamService(YouTubeCredentialService credentialService, ILogger<YouTubeStreamService> logger)
 {
-    public async Task<List<string>> PollTenantStreamsAsync(string tenantId)
+    public async Task<List<YouTubeStreamInfo>> GetActiveBroadcastAsync(CancellationToken token = default)
     {
-        logger.LogInformation("Polling YouTube streams using main user credentials for tenant {TenantId}.", tenantId);
-        
-        var client = await credentialService.GetClient(tenantId, false);
-        if  (client == null) return [];
-        
-        var streamsRequest = client.LiveBroadcasts.List((string[])["id", "status", "snippet"]);
-        streamsRequest.BroadcastType = LiveBroadcastsResource.ListRequest.BroadcastTypeEnum.All;
-        streamsRequest.Mine = true;
-        
-        var streams = await streamsRequest.ExecuteAsync();
-        if (streams.Items == null) return [];
-            
-        List<string> liveIDs = [];
-        foreach (var stream in streams.Items)
+        var streamsReturn = new List<YouTubeStreamInfo>();
+        try
         {
-            if (stream.Status == null || stream.Snippet == null)
-            {
-                continue;
-            }
-            var status = stream.Status.LifeCycleStatus;
-                
-            var isLive = status == "live" && !string.IsNullOrEmpty(stream.Snippet.LiveChatId);
+            var client = await credentialService.GetClient(false);
+            var streamsRequest = client.LiveBroadcasts.List((string[])["id", "status", "snippet"]);
+            streamsRequest.BroadcastType = LiveBroadcastsResource.ListRequest.BroadcastTypeEnum.All;
+            streamsRequest.Mine = true;
 
-            if (isLive)
+            var streams = await streamsRequest.ExecuteAsync(token);
+            if (streams?.Items == null) return streamsReturn;
+
+            foreach (var stream in streams.Items)
             {
-                liveIDs.Add(stream.Id);
-            }
+                if (stream?.Status == null || stream.Snippet == null) continue;
+
+                var isLive = stream.Status.LifeCycleStatus == "live" && !string.IsNullOrEmpty(stream.Snippet.LiveChatId);
+                if (!isLive) continue;
                 
+                streamsReturn.Add(new YouTubeStreamInfo(stream.Id, stream.Snippet.LiveChatId));
+            }
         }
-        return liveIDs;
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Failed to fetch active broadcast info.");
+        }
 
+        return streamsReturn;
     }
-
-    
 }

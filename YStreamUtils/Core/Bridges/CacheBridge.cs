@@ -1,16 +1,17 @@
 ﻿using Jint;
 using Jint.Native;
-using Jint.Native.Object;
+using Jint.Native.Json;
+using YStreamUtils.Core.Data;
+using YStreamUtils.Core.Entities;
 
 namespace YStreamUtils.Core.Bridges;
 
-public class CacheBridge(string name) : IBridge
+public class CacheBridge(string name, AppDbContext dbContext) : IBridge
 {
-    private readonly string _name = name;
     private readonly ReaderWriterLockSlim _lock = new();
-    
-    private readonly Dictionary<string, JsValue> _data = new();
 
+    private string CreateKey(string key) => $"{name}:{key}";
+    
     public void Register(Engine vm, JsObject hostObj)
     {
         var cacheObj = new JsObject(vm);
@@ -20,7 +21,16 @@ public class CacheBridge(string name) : IBridge
             _lock.EnterReadLock();
             try
             {
-                return _data.TryGetValue(key, out var val) ? val : JsValue.Null;
+                var fullKey = CreateKey(key);
+                var cacheEntry = dbContext.Caches.FirstOrDefault(x => x.Key == fullKey);
+                
+                if (cacheEntry == null || string.IsNullOrEmpty(cacheEntry.Value))
+                {
+                    return JsValue.Null;
+                }
+
+                var parser = new JsonParser(vm);
+                return parser.Parse(cacheEntry.Value);
             }
             finally
             {
@@ -33,7 +43,27 @@ public class CacheBridge(string name) : IBridge
             _lock.EnterWriteLock();
             try
             {
-                _data[key] = val;
+                var fullKey = CreateKey(key);
+                
+                var serializer = new JsonSerializer(vm);
+                JsValue stringified = serializer.Serialize(val, JsValue.Undefined, JsValue.Undefined);
+                string stringValue = stringified.AsString();
+
+                var cacheEntry = dbContext.Caches.FirstOrDefault(x => x.Key == fullKey);
+                if (cacheEntry != null)
+                {
+                    cacheEntry.Value = stringValue;
+                }
+                else
+                {
+                    dbContext.Caches.Add(new Cache 
+                    { 
+                        Key = fullKey, 
+                        Value = stringValue 
+                    });
+                }
+                
+                dbContext.SaveChanges();
             }
             finally
             {
@@ -46,7 +76,14 @@ public class CacheBridge(string name) : IBridge
             _lock.EnterWriteLock();
             try
             {
-                _data.Remove(key);
+                var fullKey = CreateKey(key);
+                var cacheEntry = dbContext.Caches.FirstOrDefault(x => x.Key == fullKey);
+                
+                if (cacheEntry != null)
+                {
+                    dbContext.Caches.Remove(cacheEntry);
+                    dbContext.SaveChanges();
+                }
             }
             finally
             {
@@ -59,7 +96,11 @@ public class CacheBridge(string name) : IBridge
             _lock.EnterWriteLock();
             try
             {
-                _data.Clear();
+                var prefix = $"{name}:";
+                var entriesToRemove = dbContext.Caches.Where(x => x.Key.StartsWith(prefix));
+                
+                dbContext.Caches.RemoveRange(entriesToRemove);
+                dbContext.SaveChanges();
             }
             finally
             {

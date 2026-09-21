@@ -7,17 +7,17 @@ public class MetricsManager
 {
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _activeStreams = new();
 
-    public bool IsMetricsStreamRunning(string tenantId, Platform platform, string videoId) =>
-        _activeStreams.ContainsKey($"{tenantId}:{platform}-{videoId}");
+    public bool IsMetricsStreamRunning(Platform platform, string videoId) =>
+        _activeStreams.ContainsKey($"{platform}-{videoId}");
 
-    public void RegisterMetricsStream(string tenantId, Platform platform, string videoId, CancellationTokenSource cts)
+    public void RegisterMetricsStream(Platform platform, string videoId, CancellationTokenSource cts)
     {
-        _activeStreams.TryAdd($"{tenantId}:{platform}-{videoId}", cts);
+        _activeStreams.TryAdd($"{platform}-{videoId}", cts);
     }
 
-    public void UnregisterMetricsStream(string tenantId, Platform platform, string videoId)
+    public void UnregisterMetricsStream(Platform platform, string videoId)
     {
-        if (!_activeStreams.TryRemove($"{tenantId}:{platform}-{videoId}", out var cts)) return;
+        if (!_activeStreams.TryRemove($"{platform}-{videoId}", out var cts)) return;
 
         try
         {

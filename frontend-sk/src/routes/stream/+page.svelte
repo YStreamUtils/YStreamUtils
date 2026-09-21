@@ -1,19 +1,27 @@
 <script lang="ts">
+	import { EventKey } from '$lib/api';
+	import Button from '$lib/components/base/Button.svelte';
 	import Card from '$lib/components/base/Card.svelte';
+	import { getEventStreamState } from '$lib/state/event.svelte';
+	import { getStreamState } from '$lib/state/streamState.svelte';
+	import { onMount, tick } from 'svelte';
 
 	let scrollContainer: HTMLDivElement;
 
-	// onMount(() => {
-	//   Events.On(EventKey.EventKeyStreamChatMessage, async (payload) => {
-	//     await tick();
-	//     if (scrollContainer) {
-	//       scrollContainer.scrollTo({
-	//         top: scrollContainer.scrollHeight,
-	//         behavior: "smooth",
-	//       });
-	//     }
-	//   });
-	// });
+	let events = getEventStreamState();
+	let streamState = getStreamState();
+
+	onMount(() => {
+		events.on(EventKey.StreamChatMessage, async () => {
+			await tick();
+			if (scrollContainer) {
+				scrollContainer.scrollTo({
+					top: scrollContainer.scrollHeight,
+					behavior: 'smooth'
+				});
+			}
+		});
+	});
 </script>
 
 <div class="stream-grid">
@@ -22,33 +30,35 @@
 			<div class="chat-header">Chat</div>
 
 			<div class="chat-viewport" bind:this={scrollContainer}>
-				<!-- {#each streamState.messages as msg}
-          <div class="chat-row">
-            <span class="chat-author" style="color: {msg.authorColor};">{msg.author}:</span>
-            <span class="chat-text">{msg.message}</span>
-          </div>
-        {/each} -->
+				{#each streamState.messages as msg, index (index)}
+					<div class="chat-row">
+						<span class="chat-author" style="color: {msg.user?.authorColor};"
+							>{msg.user?.author}:</span
+						>
+						<span class="chat-text">{msg.message}</span>
+					</div>
+				{/each}
 			</div>
 		</Card>
 	</div>
 
 	<div class="grid-right player-column">
-		<!-- <Button onclick={initializeDashboard}>Refresh Streams</Button> -->
-		<!-- <Button onclick={refreshAllMetrics}>Refresh Metrics</Button> -->
-		<!-- {#each Object.entries(streamState.activeStreamVideoIds) as [videoId, platform]}
-      <div class="player-card">
-        <Card>
-          {@render youtubeIframe(videoId)}
+		<Button onclick={streamState.initialize}>Refresh Streams</Button>
+		<Button onclick={streamState.getAllMetrics}>Refresh Metrics</Button>
+		{#each Object.entries(streamState.activeStreamVideoIds) as [videoId] (videoId)}
+			<div class="player-card">
+				<Card>
+					{@render youtubeIframe(videoId)}
 
-          <div class="player-footer">
-            Live Stream ID: {videoId}
-            <span class="footer-viewers">
-              👁️ {streamState.concurrentViewersMap[videoId] ?? 0} viewers
-            </span>
-          </div>
-        </Card>
-      </div>
-    {/each} -->
+					<div class="player-footer">
+						Live Stream ID: {videoId}
+						<span class="footer-viewers">
+							👁️ {streamState.concurrentViewersMap.get(videoId) ?? 0} viewers
+						</span>
+					</div>
+				</Card>
+			</div>
+		{/each}
 	</div>
 </div>
 

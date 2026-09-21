@@ -21,6 +21,20 @@ namespace YStreamUtils.Core.Data.Migrations.Postgres
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("YStreamUtils.Core.Entities.Cache", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("Caches");
+                });
+
             modelBuilder.Entity("YStreamUtils.Core.Entities.OAuthConfig", b =>
                 {
                     b.Property<int>("Platform")
@@ -34,10 +48,6 @@ namespace YStreamUtils.Core.Data.Migrations.Postgres
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.HasKey("Platform");
 
                     b.ToTable("OAuthConfigs");
@@ -45,22 +55,20 @@ namespace YStreamUtils.Core.Data.Migrations.Postgres
 
             modelBuilder.Entity("YStreamUtils.Core.Entities.OAuthToken", b =>
                 {
-                    b.Property<int>("Platform")
-                        .HasMaxLength(50)
-                        .HasColumnType("integer");
+                    b.Property<string>("TokenId")
+                        .HasColumnType("text");
 
-                    b.Property<bool>("IsBot")
+                    b.Property<bool>("IsBotAccount")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("Platform")
+                        .HasColumnType("integer");
 
                     b.Property<string>("TokenJson")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.HasKey("Platform", "IsBot");
+                    b.HasKey("TokenId");
 
                     b.ToTable("OAuthTokens");
                 });
@@ -74,10 +82,6 @@ namespace YStreamUtils.Core.Data.Migrations.Postgres
                         .HasColumnType("boolean");
 
                     b.Property<string>("Source")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("TenantId")
                         .IsRequired()
                         .HasColumnType("text");
 

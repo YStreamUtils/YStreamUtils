@@ -13,7 +13,7 @@ public class DbDataStore(AppDbContext dbContext) : IDataStore
     public async Task<T?> GetAsync<T>(string key)
     {
         var tokenRecord = await dbContext.OAuthTokens
-            .FirstOrDefaultAsync(t => t.Platform == Platform.YouTube && t.IsBot == IsBot(key));
+            .FirstOrDefaultAsync(t => t.Platform == Platform.YouTube && t.IsBotAccount == IsBot(key));
     
         return string.IsNullOrEmpty(tokenRecord?.TokenJson) ? default : JsonSerializer.Deserialize<T>(tokenRecord.TokenJson);
     }
@@ -22,11 +22,11 @@ public class DbDataStore(AppDbContext dbContext) : IDataStore
     {
         if (value == null) return;
         var tokenRecord = await dbContext.OAuthTokens
-            .FirstOrDefaultAsync(t => t.Platform == Platform.YouTube && t.IsBot == IsBot(key));
+            .FirstOrDefaultAsync(t => t.Platform == Platform.YouTube && t.IsBotAccount == IsBot(key));
 
         if (tokenRecord == null)
         {
-            tokenRecord = new OAuthToken { Platform = Platform.YouTube, IsBot = IsBot(key) };
+            tokenRecord = new OAuthToken { Platform = Platform.YouTube, IsBotAccount = IsBot(key) };
             dbContext.OAuthTokens.Add(tokenRecord);
         }
 
@@ -37,7 +37,7 @@ public class DbDataStore(AppDbContext dbContext) : IDataStore
     public async Task DeleteAsync<T>(string key)
     {
         var tokenRecord = await dbContext.OAuthTokens
-            .FirstOrDefaultAsync(t => t.Platform == Platform.YouTube && t.IsBot == IsBot(key));
+            .FirstOrDefaultAsync(t => t.Platform == Platform.YouTube && t.IsBotAccount == IsBot(key));
         
         if (tokenRecord != null)
         {

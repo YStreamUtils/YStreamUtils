@@ -20,16 +20,15 @@ internal static class Program
         {
             return;
         }
-        
+
         _ = Task.Run(async () =>
         {
             var builder = WebApplication.CreateSlimBuilder(args);
             builder.WebHost.UseUrls(KestrelUrl);
-            builder.Services.AddYStreamUtils();
+            builder.AddYStreamUtils();
 
             builder.Services.AddDbContext<SqliteDbContext>();
-            builder.Services.AddScoped<AppDbContext>(sp => sp.GetRequiredService<SqliteDbContext>());
-            builder.Services.AddScoped<TenantContext>();
+            builder.Services.AddSingleton<AppDbContext>(sp => sp.GetRequiredService<SqliteDbContext>());
 
             var app = builder.Build();
 
@@ -45,26 +44,8 @@ internal static class Program
                 app.UseStaticFiles();
             }
 
-            app.Use(async (context, next) =>
-            {
-                if (context.User?.Identity?.IsAuthenticated != true)
-                {
-                    var claims = new[] {
-                        new Claim(ClaimTypes.NameIdentifier, "local-desktop-user"),
-                        new Claim(ClaimTypes.Name, "Desktop"),
-                        new Claim(ClaimTypes.Role, "Admin")
-                    };
-            
-                    var identity = new ClaimsIdentity(claims, "DesktopAuth");
-                    context.User = new ClaimsPrincipal(identity);
-                }
-                await next();
-            });
-            app.UseAuthentication();
-            app.UseAuthorization();
-            
             app.UseDefaultEndpoints();
-            
+
             Console.WriteLine($"[YStreamUtils] Launching web host on {KestrelUrl}");
 
             await app.RunAsync();

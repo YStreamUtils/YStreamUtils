@@ -15,6 +15,12 @@ export const ApplicationPlatform = {
   Unknown: 'Unknown',
 } as const;
 
+export interface BaseUserData {
+  authorId?: string;
+  author?: string;
+  authorColor?: string;
+}
+
 export interface ConnectUrlResponse {
   url: string;
 }
@@ -22,6 +28,8 @@ export interface ConnectUrlResponse {
 export interface DocumentationConfig {
   description: string;
 }
+
+export interface EmptyStruct { [key: string]: unknown }
 
 export interface EnvironmentPlatformResponse {
   platform: ApplicationPlatform;
@@ -35,6 +43,7 @@ export const EventKey = {
   StreamChatMessage: 'StreamChatMessage',
   YoutubeSuperChat: 'YoutubeSuperChat',
   ApplicationLog: 'ApplicationLog',
+  StreamMetrics: 'StreamMetrics',
 } as const;
 
 export type Platform = typeof Platform[keyof typeof Platform];
@@ -92,6 +101,97 @@ export interface Settings {
   plugins?: PluginSettings;
 }
 
+export type StreamChatMessageEventUser = {
+  authorId?: string;
+  author?: string;
+  authorColor?: string;
+};
+
+export interface StreamChatMessageEvent {
+  user?: StreamChatMessageEventUser;
+  messageId?: string;
+  message?: string;
+  liveChatId?: string;
+}
+
+export type StreamCheerMessageEventUser = {
+  authorId?: string;
+  author?: string;
+  authorColor?: string;
+};
+
+export interface StreamCheerMessageEvent {
+  user?: StreamCheerMessageEventUser;
+  /** @pattern ^-?(?:0|[1-9]\d*)$ */
+  bits?: number | string;
+}
+
+export interface StreamEventEnvelopeOfBaseUserData {
+  tenantId: string;
+  platform?: Platform;
+  /** @nullable */
+  timestamp?: string | null;
+  data?: BaseUserData;
+}
+
+export interface StreamEventEnvelopeOfEmptyStruct {
+  tenantId: string;
+  platform?: Platform;
+  /** @nullable */
+  timestamp?: string | null;
+  data?: EmptyStruct;
+}
+
+export interface StreamEventEnvelopeOfStreamChatMessageEvent {
+  tenantId: string;
+  platform?: Platform;
+  /** @nullable */
+  timestamp?: string | null;
+  data?: StreamChatMessageEvent;
+}
+
+export interface StreamEventEnvelopeOfStreamCheerMessageEvent {
+  tenantId: string;
+  platform?: Platform;
+  /** @nullable */
+  timestamp?: string | null;
+  data?: StreamCheerMessageEvent;
+}
+
+export interface StreamMetricsEvent {
+  viewers?: string;
+}
+
+export interface StreamEventEnvelopeOfStreamMetricsEvent {
+  tenantId: string;
+  platform?: Platform;
+  /** @nullable */
+  timestamp?: string | null;
+  data?: StreamMetricsEvent;
+}
+
+export type StreamSuperChatMessageEventUser = {
+  authorId?: string;
+  author?: string;
+  authorColor?: string;
+};
+
+export interface StreamSuperChatMessageEvent {
+  user?: StreamSuperChatMessageEventUser;
+  messageId?: string;
+  message?: string;
+  liveChatId?: string;
+  amount?: string;
+}
+
+export interface StreamEventEnvelopeOfStreamSuperChatMessageEvent {
+  tenantId: string;
+  platform?: Platform;
+  /** @nullable */
+  timestamp?: string | null;
+  data?: StreamSuperChatMessageEvent;
+}
+
 export interface UserProfile {
   displayName: string;
   avatarUrl: string;
@@ -124,6 +224,26 @@ state: string;
 export type GetProfileParams = {
 platform: Platform;
 isBot: boolean;
+};
+
+export type RegisterChatStreamParams = {
+platform: Platform;
+videoId: string;
+};
+
+export type RemoveChatStreamParams = {
+platform: Platform;
+videoId: string;
+};
+
+export type RegisterMetricsStreamParams = {
+platform: Platform;
+videoId: string;
+};
+
+export type RemoveMetricsStreamParams = {
+platform: Platform;
+videoId: string;
 };
 
 export type getSettingsResponse200 = {
@@ -703,7 +823,7 @@ export const invokeManualEvent = async ( options?: RequestInit): Promise<invokeM
 
 
 export type listenToGlobalEventBusStreamResponse200 = {
-  data: void
+  data: StreamEventEnvelopeOfStreamMetricsEvent
   status: 200
 }
 
@@ -736,7 +856,7 @@ export const listenToGlobalEventBusStream = async ( options?: RequestInit): Prom
 
   const body = [204, 205, 304].includes(res.status) ? null : await res.text();
 
-  const data: listenToGlobalEventBusStreamResponse['data'] = body ? JSON.parse(body) : undefined
+  const data: listenToGlobalEventBusStreamResponse['data'] = body !== null ? body : ''
   return { data, status: res.status, headers: res.headers } as listenToGlobalEventBusStreamResponse
 }
 
@@ -1020,6 +1140,194 @@ export const getRunningEnvironment = async ( options?: RequestInit): Promise<get
 
   const data: getRunningEnvironmentResponse['data'] = body ? JSON.parse(body) : {}
   return { data, status: res.status, headers: res.headers } as getRunningEnvironmentResponse
+}
+
+
+
+export type registerChatStreamResponse200 = {
+  data: void
+  status: 200
+}
+
+export type registerChatStreamResponseSuccess = (registerChatStreamResponse200) & {
+  headers: Headers;
+};
+;
+
+export type registerChatStreamResponse = (registerChatStreamResponseSuccess)
+
+export const getRegisterChatStreamUrl = (params: RegisterChatStreamParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/stream/chat/connect?${stringifiedParams}` : `/api/stream/chat/connect`
+}
+
+export const registerChatStream = async (params: RegisterChatStreamParams, options?: RequestInit): Promise<registerChatStreamResponse> => {
+
+  const res = await fetch(getRegisterChatStreamUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: registerChatStreamResponse['data'] = body ? JSON.parse(body) : undefined
+  return { data, status: res.status, headers: res.headers } as registerChatStreamResponse
+}
+
+
+
+export type removeChatStreamResponse200 = {
+  data: void
+  status: 200
+}
+
+export type removeChatStreamResponseSuccess = (removeChatStreamResponse200) & {
+  headers: Headers;
+};
+;
+
+export type removeChatStreamResponse = (removeChatStreamResponseSuccess)
+
+export const getRemoveChatStreamUrl = (params: RemoveChatStreamParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/stream/chat/disconnect?${stringifiedParams}` : `/api/stream/chat/disconnect`
+}
+
+export const removeChatStream = async (params: RemoveChatStreamParams, options?: RequestInit): Promise<removeChatStreamResponse> => {
+
+  const res = await fetch(getRemoveChatStreamUrl(params),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: removeChatStreamResponse['data'] = body ? JSON.parse(body) : undefined
+  return { data, status: res.status, headers: res.headers } as removeChatStreamResponse
+}
+
+
+
+export type registerMetricsStreamResponse200 = {
+  data: void
+  status: 200
+}
+
+export type registerMetricsStreamResponseSuccess = (registerMetricsStreamResponse200) & {
+  headers: Headers;
+};
+;
+
+export type registerMetricsStreamResponse = (registerMetricsStreamResponseSuccess)
+
+export const getRegisterMetricsStreamUrl = (params: RegisterMetricsStreamParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/stream/metrics/connect?${stringifiedParams}` : `/api/stream/metrics/connect`
+}
+
+export const registerMetricsStream = async (params: RegisterMetricsStreamParams, options?: RequestInit): Promise<registerMetricsStreamResponse> => {
+
+  const res = await fetch(getRegisterMetricsStreamUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: registerMetricsStreamResponse['data'] = body ? JSON.parse(body) : undefined
+  return { data, status: res.status, headers: res.headers } as registerMetricsStreamResponse
+}
+
+
+
+export type removeMetricsStreamResponse200 = {
+  data: void
+  status: 200
+}
+
+export type removeMetricsStreamResponseSuccess = (removeMetricsStreamResponse200) & {
+  headers: Headers;
+};
+;
+
+export type removeMetricsStreamResponse = (removeMetricsStreamResponseSuccess)
+
+export const getRemoveMetricsStreamUrl = (params: RemoveMetricsStreamParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/stream/metrics/disconnect?${stringifiedParams}` : `/api/stream/metrics/disconnect`
+}
+
+export const removeMetricsStream = async (params: RemoveMetricsStreamParams, options?: RequestInit): Promise<removeMetricsStreamResponse> => {
+
+  const res = await fetch(getRemoveMetricsStreamUrl(params),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: removeMetricsStreamResponse['data'] = body ? JSON.parse(body) : undefined
+  return { data, status: res.status, headers: res.headers } as removeMetricsStreamResponse
 }
 
 

@@ -20,9 +20,8 @@ public class SqliteDbContextFactory : IDesignTimeDbContextFactory<SqliteDbContex
         var dbPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ystreamutils", "ystreamutils.db");
         optionsBuilder.UseSqlite($"Data Source={dbPath}");
 
-        var mockContext = new TenantContext(new HttpContextAccessor(), fallbackTenant: "migrations-design");
 
-        return new SqliteDbContext(optionsBuilder.Options, mockContext, configuration);
+        return new SqliteDbContext(optionsBuilder.Options, configuration);
     }
 }
 
@@ -39,11 +38,8 @@ public class PostgresDbContextFactory : IDesignTimeDbContextFactory<PostgresDbCo
         var optionsBuilder = new DbContextOptionsBuilder<PostgresDbContext>();
         var connectionString = configuration.GetConnectionString("DefaultConnection");
 
-        // Uses a hardcoded local fallback password so the design-time tool builds cleanly without a container
         optionsBuilder.UseNpgsql(connectionString ?? "Host=localhost;Database=migrations_dummy;Username=postgres;Password=passwordpassword123");
-
-        var mockContext = new TenantContext(new HttpContextAccessor(), fallbackTenant: "migrations-design");
-
-        return new PostgresDbContext(optionsBuilder.Options, mockContext, configuration);
+        
+        return new PostgresDbContext(optionsBuilder.Options, configuration);
     }
 }

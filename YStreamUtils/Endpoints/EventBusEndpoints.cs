@@ -3,10 +3,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-using YStreamUtils.Core.Entities;
 using YStreamUtils.Core.Events;
 using YStreamUtils.Core.Models;
-using YStreamUtils.Extensions;
 
 namespace YStreamUtils.Endpoints;
 
@@ -14,11 +12,9 @@ public static class EventBusEndpoints
 {
     public static RouteGroupBuilder AddEventBusEndpoints(this RouteGroupBuilder groupBuilder)
     {
-        groupBuilder.MapPost("/events/invoke", async ([FromServices] IEventBus eventBus, [FromServices] IHttpContextAccessor httpContextAccessor) =>
+        groupBuilder.MapPost("/events/invoke", async ([FromServices] IEventBus eventBus) =>
             {
-                var tenantId = httpContextAccessor.GetTenantContext().TenantId;
                 var envelope = StreamEventEnvelope<object>.Create(
-                    tenantId,
                     Platform.YouTube
                 );
 
@@ -31,10 +27,8 @@ public static class EventBusEndpoints
         groupBuilder.MapGet("/events/listen", async (
                 HttpContext context,
                 IEventBus eventBus,
-                IHttpContextAccessor httpContextAccessor, 
                 CancellationToken cancellationToken) =>
             {
-                var currentTenantId = httpContextAccessor.GetTenantContext().TenantId;
 
                 context.Response.ContentType = "text/event-stream";
                 context.Response.Headers.Append("Cache-Control", "no-cache");
@@ -48,11 +42,6 @@ public static class EventBusEndpoints
                 var allEventKeys = Enum.GetValues<EventKey>();
                 var unsub = allEventKeys.Select(key => eventBus.Subscribe(key, async (payload, cbToken) =>
                     {
-                        if (payload is not ITenantEntity tenantEvent || tenantEvent.TenantId != currentTenantId)
-                        {
-                            return;
-                        }
-
                         await channel.Writer.WriteAsync(payload, cbToken);
                     }))
                     .ToList();
@@ -82,7 +71,8 @@ public static class EventBusEndpoints
                     foreach (var unsubAction in unsub) unsubAction();
                 }
             })
-            .WithName("ListenToGlobalEventBusStream");
+            .WithName("ListenToGlobalEventBusStream")
+            .Produces(StatusCodes.Status200OK, contentType: "text/event-stream");
 
         return groupBuilder;
     }
