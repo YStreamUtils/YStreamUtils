@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using YStreamUtils.Core.Entities;
+using YStreamUtils.Core.Events;
 
 namespace YStreamUtils.Core.Data;
 
@@ -27,5 +28,17 @@ public abstract class AppDbContext(
         {
             optionsBuilder.AddInterceptors(new DataProtectionInterceptor(logger, provider));
         }
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+        
+        modelBuilder.Entity<UserScript>()
+            .Property(e => e.Topic)
+            .HasConversion(
+                v => v.Value,
+                v => EventKey.Custom(v)
+            );
     }
 }

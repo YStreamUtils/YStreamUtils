@@ -29,6 +29,8 @@
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
         
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+        
+        <PackageReference Include="Reinforced.Typings" Version="1.6.7" />
     </ItemGroup>
 
     <ItemGroup>
@@ -62,5 +64,14 @@
             </ResolvedFileToPublish>
         </ItemGroup>
     </Target>
+
+    <PropertyGroup>
+        <RtTargetFile>$(ProjectDir)../host.d.ts</RtTargetFile>
+        <RtExportPureTypings>true</RtExportPureTypings>
+        <RtCamelCaseForProperties>true</RtCamelCaseForProperties>
+        <RtCamelCaseForMethods>true</RtCamelCaseForMethods>
+        <RtForce>true</RtForce>
+    </PropertyGroup>
+
 
 </Project>
