@@ -6,7 +6,7 @@ namespace YStreamUtils.Core.Models;
 public static class Consts
 {
     public static string ApplicationDataFolder =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "YStreamUtils");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YStreamUtils");
 
     public static readonly IEnumerable<string> YoutubeScopes = [YouTubeService.Scope.YoutubeForceSsl];
 
@@ -14,6 +14,4 @@ public static class Consts
     {
         WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
-    
-    public static readonly bool IsDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
 }

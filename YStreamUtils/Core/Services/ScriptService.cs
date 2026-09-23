@@ -3,19 +3,16 @@ using System.Text.RegularExpressions;
 using Acornima.Ast;
 using Jint;
 using Jint.Native;
-using Microsoft.AspNetCore.Http;
+using Jint.Native.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using YStreamUtils.Core.Bridges;
 using YStreamUtils.Core.Data;
-using YStreamUtils.Core.Entities;
 using YStreamUtils.Core.Events;
-using YStreamUtils.Core.Models;
-using YStreamUtils.Extensions;
 
 namespace YStreamUtils.Core.Services;
 
-public record CompiledPlugin(Prepared<Script> Program, List<string> Permissions);
+public record CompiledPlugin(string Source, List<string> Permissions);
 
 public class CompiledScript
 {
@@ -41,36 +38,7 @@ public partial class ScriptsService(
         { EventKey.ManualInvoke, typeof(StreamEventEnvelope<EmptyStruct>) }
     };
 
-    public async Task InitializeVmPoolAsync()
-    {
-        await _lock.WaitAsync();
-        try
-        {
-            var activePlugins = pluginService.GetActivePlugins();
-            _cachedPlugins.Clear();
-
-            foreach (var (name, plugin) in activePlugins)
-            {
-                try
-                {
-                    var preparedScript = Engine.PrepareScript(plugin.PluginSource, name);
-                    var perms = plugin.Manifest.Permissions.Select(p => p.ToString()).ToList();
-
-                    _cachedPlugins[name] = new CompiledPlugin(preparedScript, perms);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Plugin failed to compile: {PluginName}", name);
-                }
-            }
-        }
-        finally
-        {
-            _lock.Release();
-        }
-    }
-
-    public void InjectScopedHostObject(Engine vm, JsObject hostObj, string pluginName, List<string> permissions)
+    private void InjectScopedHostObject(Engine vm, JsObject hostObj, string pluginName, List<string> permissions)
     {
         if (permissions.Contains("network"))
         {
@@ -103,35 +71,47 @@ public partial class ScriptsService(
             var detectedPlugins = matches.Select(m => m.Groups[1].Value).Distinct().ToList();
             logger.LogDebug("Found {DetectedPluginsCount} plugins", detectedPlugins.Count);
 
-
             var unsubscribingAction = eventBus.Subscribe(topic, async (payload, cancellationToken) =>
             {
-                
-                var vm = new Engine(options =>
-                {
-                    options.Strict();
-                    options.TimeoutInterval(TimeSpan.FromMilliseconds(150));
-                });
+                var vm = new Engine();
 
                 var pluginsObj = new JsObject(vm);
                 vm.SetValue("plugins", (JsValue)pluginsObj);
 
+                var plugins = pluginService.GetActivePlugins();
                 foreach (var name in detectedPlugins)
                 {
-                    if (!_cachedPlugins.TryGetValue(name, out var plugin))
+                    if (!plugins.TryGetValue(name, out var plugin))
                     {
                         logger.LogError("Script tried to use a non-existent plugin: {PluginName}", name);
                         continue;
                     }
 
+                    vm.Modules.Add(name, plugin.PluginSource);
+
                     var pluginHostObj = new JsObject(vm);
-                    InjectScopedHostObject(vm, pluginHostObj, name, plugin.Permissions);
-                    vm.SetValue("host", (JsValue)pluginHostObj);
+                    InjectScopedHostObject(vm, pluginHostObj, name, plugin.Manifest.Permissions);
+                    var parser = new JsonParser(vm);
+                    var uniqueSettingsJson = pluginService.GetSettingsForPlugin(name);
+                    var pluginSettings = parser.Parse(uniqueSettingsJson);
 
-                    await vm.EvaluateAsync(plugin.Program, cancellationToken);
+                    vm.SetValue($"_host_{name}", pluginHostObj);
+                    vm.SetValue($"_settings_{name}", pluginSettings);
 
-                    var boundPluginInstance = vm.GetValue(name);
-                    pluginsObj.Set(name, boundPluginInstance);
+                    var bootstrapper = $@"
+                    import PluginClass from '{name}';
+                    export const instance = new PluginClass(_host_{name}, _settings_{name});
+                ";
+
+                    var runnerName = $"{name}_runner";
+                    vm.Modules.Add(runnerName, bootstrapper);
+
+                    var runnerModule = await vm.Modules.ImportAsync(runnerName, cancellationToken);
+                    var liveInstance = runnerModule.Get("instance");
+                    pluginsObj.Set(name, liveInstance);
+
+                    vm.SetValue($"_host_{name}", JsValue.Undefined);
+                    vm.SetValue($"_settings_{name}", JsValue.Undefined);
                 }
 
                 var userHost = new JsObject(vm);
@@ -142,7 +122,8 @@ public partial class ScriptsService(
                             logger.Log(ParseLogLevel(level), "[Script: {ScriptId}] {Message}", scriptId, msg);
                         })));
 
-                var cacheBridge = _caches.GetOrAdd(scriptId, id => new CacheBridge(id, serviceProvider.GetRequiredService<AppDbContext>()));
+                var cacheBridge = _caches.GetOrAdd(scriptId,
+                    id => new CacheBridge(id, serviceProvider.GetRequiredService<AppDbContext>()));
                 cacheBridge.Register(vm, userHost);
 
                 vm.SetValue("host", (JsValue)userHost);
@@ -174,6 +155,7 @@ public partial class ScriptsService(
             _lock.Release();
         }
     }
+
 
     public string GetMonacoEnvironment(EventKey topic)
     {

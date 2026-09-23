@@ -17,6 +17,7 @@ public abstract class AppDbContext(
     public DbSet<OAuthConfig> OAuthConfigs => Set<OAuthConfig>();
     public DbSet<OAuthToken> OAuthTokens => Set<OAuthToken>();
     public DbSet<Cache> Caches => Set<Cache>();
+    public DbSet<PluginSettings> PluginSettings => Set<PluginSettings>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
