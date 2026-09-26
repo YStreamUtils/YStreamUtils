@@ -55,7 +55,6 @@ export const Platform = {
 } as const;
 
 export interface OAuthConfigInput {
-  tenantId: string;
   platform: Platform;
   clientId: string;
   clientSecret: string;
@@ -204,7 +203,6 @@ export interface UserScript {
   topic?: EventKey;
   source?: string;
   isEnabled?: boolean;
-  tenantId?: string;
 }
 
 export type HasAuthConfigParams = {
@@ -823,7 +821,7 @@ export const invokeManualEvent = async ( options?: RequestInit): Promise<invokeM
 
 
 export type listenToGlobalEventBusStreamResponse200 = {
-  data: StreamEventEnvelopeOfStreamMetricsEvent
+  data: void
   status: 200
 }
 
@@ -856,7 +854,7 @@ export const listenToGlobalEventBusStream = async ( options?: RequestInit): Prom
 
   const body = [204, 205, 304].includes(res.status) ? null : await res.text();
 
-  const data: listenToGlobalEventBusStreamResponse['data'] = body !== null ? body : ''
+  const data: listenToGlobalEventBusStreamResponse['data'] = body ? JSON.parse(body) : undefined
   return { data, status: res.status, headers: res.headers } as listenToGlobalEventBusStreamResponse
 }
 

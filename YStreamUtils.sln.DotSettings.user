@@ -1,0 +1,13 @@
+﻿<wpf:ResourceDictionary xml:space="preserve" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:ss="urn:shemas-jetbrains-com:settings-storage-xaml" xmlns:wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003AAppBuilder_002Ecs_002Fl_003AC_0021_003FUsers_003FUser_003FAppData_003FRoaming_003FJetBrains_003FRider2025_002E3_003Fresharper_002Dhost_003FDecompilerCache_003Fdecompiler_003Fd067e726e1ce4376b07936c50c1de6aa13fe00_003Fab_003Fc7170d2d_003FAppBuilder_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
+	
+	
+	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003ALucideIconKind_002Ecs_002Fl_003AC_0021_003FUsers_003FUser_003FAppData_003FRoaming_003FJetBrains_003FRider2025_002E3_003Fresharper_002Dhost_003FDecompilerCache_003Fdecompiler_003F4d5eb70475ea4b9b845b93f535f83e0a61a00_003F16_003F0362274c_003FLucideIconKind_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
+	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003APackIconLucide_002Ecs_002Fl_003AC_0021_003FUsers_003FUser_003FAppData_003FRoaming_003FJetBrains_003FRider2025_002E3_003Fresharper_002Dhost_003FSourcesCache_003F498a30c33f82a7f0c9a31c5366b6b86a375553492274a6654091f149f0e27a74_003FPackIconLucide_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
+	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003APackIconLucideKind_002Ecs_002Fl_003AC_0021_003FUsers_003FUser_003FAppData_003FRoaming_003FJetBrains_003FRider2025_002E3_003Fresharper_002Dhost_003FSourcesCache_003F63df60fd91994a289ccc779919dcf641480980_003F_005F0d93c_003FPackIconLucideKind_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
+	
+	
+	<s:String x:Key="/Default/Environment/AssemblyExplorer/XmlDocument/@EntryValue">&lt;AssemblyExplorer&gt;&#xD;
+  &lt;Assembly Path="C:\Users\User\.nuget\packages\iconpacks.avalonia.lucide\2.0.0\lib\net8.0\IconPacks.Avalonia.Lucide.dll" /&gt;&#xD;
+  &lt;Assembly Path="C:\Users\User\.nuget\packages\lucide.avalonia\0.2.23\lib\net10.0\Lucide.Avalonia.dll" /&gt;&#xD;
+&lt;/AssemblyExplorer&gt;</s:String></wpf:ResourceDictionary>
