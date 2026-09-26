@@ -2,12 +2,15 @@
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using Json.Schema;
 using Microsoft.Extensions.Logging;
+using YStreamUtils.Core.Data;
 using YStreamUtils.Core.Models;
 
 namespace YStreamUtils.Core.Services;
 
-public class PluginService(ILogger<PluginService> logger, SettingsService settings, HttpClient httpClient)
+public class PluginService(ILogger<PluginService> logger, SettingsService settings, HttpClient httpClient, AppDbContext dbContext)
 {
     private readonly string _pluginDir = Path.Combine(Consts.ApplicationDataFolder, "plugins");
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -165,7 +168,14 @@ public class PluginService(ILogger<PluginService> logger, SettingsService settin
                         typeDefs = await File.ReadAllTextAsync(defFilePath);
                     }
 
-                    newActivePlugins[pluginNamespace] = new Plugin(bundledJs, typeDefs, manifest);
+                    var settingsSchema = string.Empty;
+                    var schemaFilePath = Path.Combine(folderPath, "schema.json");
+                    if (File.Exists(schemaFilePath))
+                    {
+                        settingsSchema = await File.ReadAllTextAsync(schemaFilePath);
+                    }
+
+                    newActivePlugins[pluginNamespace] = new Plugin(bundledJs, typeDefs, manifest, settingsSchema);
                 }
                 catch (Exception ex)
                 {
@@ -183,11 +193,43 @@ public class PluginService(ILogger<PluginService> logger, SettingsService settin
         }
     }
 
-    private static string GetSafePluginNamespace(string input) =>
-        new string(input.Where(char.IsLetterOrDigit).ToArray());
+    private static string GetSafePluginNamespace(string input) => new(input.Where(char.IsLetterOrDigit).ToArray());
 
     private static string BuildDynamicPluginDefinitions(Dictionary<string, Plugin> plugins) =>
         string.Join("\n", plugins.Values.Select(p => p.TypeScriptDefs));
 
     public string GetDynamicPluginDefinitions() => _pluginTypeCache;
+
+    public string GetSettingsForPlugin(string name)
+    {
+        if(!_activePlugins.TryGetValue(name, out var plugin))
+            throw new KeyNotFoundException($"Plugin {name} not found");
+        var pluginSettings = dbContext.PluginSettings.First(x => x.PluginName == plugin.Manifest.Name);
+        return JsonSerializer.Serialize(pluginSettings.SettingsJson);
+    }
+    public string GetSettingsSchemaForPlugin(string name)
+    {
+        _activePlugins.TryGetValue(name, out var plugin);
+        return plugin?.PluginSettingsSchema ?? string.Empty;
+    }
+    public void SetSettingsForPlugin(string name, string newSettings)
+    {
+        _activePlugins.TryGetValue(name, out var plugin);
+        if (plugin is null) throw new KeyNotFoundException($"Plugin {name} not found");
+
+        var schema = JsonSchema.FromText(plugin.PluginSettingsSchema);
+        
+        using var jsonDocument = JsonDocument.Parse(newSettings);
+        var result = schema.Evaluate(jsonDocument.RootElement);
+
+        if (!result.IsValid)
+        {
+            throw new ArgumentException("Invalid plugin settings structure");
+        }
+
+        var pluginSettings = dbContext.PluginSettings.First(x => x.PluginName == plugin.Manifest.Name);
+        pluginSettings.SettingsJson = newSettings;
+    
+        dbContext.SaveChanges();
+    }
 }

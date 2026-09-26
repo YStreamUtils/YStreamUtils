@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace YStreamUtils.Core.Models;
 
-public record Plugin(string PluginSource, string TypeScriptDefs, PluginManifest Manifest);
+public record Plugin(string PluginSource, string TypeScriptDefs, PluginManifest Manifest, string PluginSettingsSchema);
 
 public class PluginManifest
 {

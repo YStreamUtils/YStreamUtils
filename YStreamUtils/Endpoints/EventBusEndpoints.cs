@@ -25,6 +25,7 @@ public static class EventBusEndpoints
             .WithName("InvokeManualEvent");
 
         groupBuilder.MapGet("/events/listen", async (
+                [FromQuery] EventKey[]? eventKey,
                 HttpContext context,
                 IEventBus eventBus,
                 CancellationToken cancellationToken) =>
@@ -39,8 +40,9 @@ public static class EventBusEndpoints
                     SingleReader = true
                 });
 
-                var allEventKeys = Enum.GetValues<EventKey>();
-                var unsub = allEventKeys.Select(key => eventBus.Subscribe(key, async (payload, cbToken) =>
+
+                var events = eventKey ?? EventKey.KnownKeys.ToArray(); 
+                var unsub = events.Select(key => eventBus.Subscribe(key, async (payload, cbToken) =>
                     {
                         await channel.Writer.WriteAsync(payload, cbToken);
                     }))

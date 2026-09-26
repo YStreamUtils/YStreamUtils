@@ -18,6 +18,7 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
         <PackageReference Include="Jint" Version="4.16.2" />
+        <PackageReference Include="JsonSchema.Net" Version="9.4.0" />
         <PackageReference Include="Microsoft.AspNetCore.SpaServices.Extensions" Version="10.0.12" />
         <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
@@ -27,6 +28,8 @@
         </PackageReference>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+        
+        <PackageReference Include="Reinforced.Typings" Version="1.6.7" />
     </ItemGroup>
 
     <ItemGroup>
@@ -60,5 +63,14 @@
             </ResolvedFileToPublish>
         </ItemGroup>
     </Target>
+
+    <PropertyGroup>
+        <RtTargetFile>$(ProjectDir)../host.d.ts</RtTargetFile>
+        <RtExportPureTypings>true</RtExportPureTypings>
+        <RtCamelCaseForProperties>true</RtCamelCaseForProperties>
+        <RtCamelCaseForMethods>true</RtCamelCaseForMethods>
+        <RtForce>true</RtForce>
+    </PropertyGroup>
+
 
 </Project>

@@ -46,8 +46,8 @@ public class CacheBridge(string name, AppDbContext dbContext) : IBridge
                 var fullKey = CreateKey(key);
                 
                 var serializer = new JsonSerializer(vm);
-                JsValue stringified = serializer.Serialize(val, JsValue.Undefined, JsValue.Undefined);
-                string stringValue = stringified.AsString();
+                var stringified = serializer.Serialize(val, JsValue.Undefined, JsValue.Undefined);
+                var stringValue = stringified.AsString();
 
                 var cacheEntry = dbContext.Caches.FirstOrDefault(x => x.Key == fullKey);
                 if (cacheEntry != null)

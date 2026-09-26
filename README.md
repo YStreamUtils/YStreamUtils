@@ -21,7 +21,6 @@ var logger = GetService("Logger");
 
 ```js
 // JS
-const logger = GetService("Logger")
 const logger = host.log("info", "blah blah blah")
 // or whatever idk
 ```
@@ -37,9 +36,9 @@ For those who care... THE STACK!
 - Dotnet 10
 - ASP.Net for the apis
 - Jint
-- Docker and Desktop compatible, same binary
-- PWA available (evnetually)
-- Svelte 5 (not kit, just a SPA I guess?)
+- Docker and Desktop compatible, Desktop via PhotinoX and Docker via... Docker
+- PWA available (eventually)
+- Svelte 5 (kit)
 
 This project was initially in Go but I moved it over to ASP.Net + dotnet 10.
 The decision primarily centered around DI, tooling, and the fact that Jint supports ES6+ while Goja only does ES5 plus some other features.

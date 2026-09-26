@@ -154,7 +154,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/EventKey"
+              "type": "string"
             }
           }
         ],
@@ -301,6 +301,15 @@
           "YStreamUtils.Docker"
         ],
         "operationId": "ListenToGlobalEventBusStream",
+        "parameters": [
+          {
+            "name": "eventKey",
+            "in": "query",
+            "schema": {
+              "type": "array"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK"
@@ -652,20 +661,6 @@
           "Unknown"
         ]
       },
-      "BaseUserData": {
-        "type": "object",
-        "properties": {
-          "authorId": {
-            "type": "string"
-          },
-          "author": {
-            "type": "string"
-          },
-          "authorColor": {
-            "type": "string"
-          }
-        }
-      },
       "ConnectUrlResponse": {
         "required": [
           "url"
@@ -688,9 +683,6 @@
           }
         }
       },
-      "EmptyStruct": {
-        "type": "object"
-      },
       "EnvironmentPlatformResponse": {
         "required": [
           "platform"
@@ -704,12 +696,13 @@
       },
       "EventKey": {
         "enum": [
-          "ManualInvoke",
-          "StreamChatMessage",
-          "YoutubeSuperChat",
-          "ApplicationLog",
-          "StreamMetrics"
-        ]
+          "app:manual",
+          "stream:chat_message",
+          "stream:youtube:superchat",
+          "app:log",
+          "stream:metrics"
+        ],
+        "type": "string"
       },
       "OAuthConfigInput": {
         "required": [
@@ -840,244 +833,6 @@
             "type": "string"
           },
           "owner": {
-            "type": "string"
-          }
-        }
-      },
-      "StreamChatMessageEvent": {
-        "type": "object",
-        "properties": {
-          "user": {
-            "type": "object",
-            "properties": {
-              "authorId": {
-                "type": "string"
-              },
-              "author": {
-                "type": "string"
-              },
-              "authorColor": {
-                "type": "string"
-              }
-            }
-          },
-          "messageId": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "liveChatId": {
-            "type": "string"
-          }
-        }
-      },
-      "StreamCheerMessageEvent": {
-        "type": "object",
-        "properties": {
-          "user": {
-            "type": "object",
-            "properties": {
-              "authorId": {
-                "type": "string"
-              },
-              "author": {
-                "type": "string"
-              },
-              "authorColor": {
-                "type": "string"
-              }
-            }
-          },
-          "bits": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int64"
-          }
-        }
-      },
-      "StreamEventEnvelopeOfBaseUserData": {
-        "required": [
-          "tenantId"
-        ],
-        "type": "object",
-        "properties": {
-          "tenantId": {
-            "type": "string"
-          },
-          "platform": {
-            "$ref": "#/components/schemas/Platform"
-          },
-          "timestamp": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "data": {
-            "$ref": "#/components/schemas/BaseUserData"
-          }
-        }
-      },
-      "StreamEventEnvelopeOfEmptyStruct": {
-        "required": [
-          "tenantId"
-        ],
-        "type": "object",
-        "properties": {
-          "tenantId": {
-            "type": "string"
-          },
-          "platform": {
-            "$ref": "#/components/schemas/Platform"
-          },
-          "timestamp": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "data": {
-            "$ref": "#/components/schemas/EmptyStruct"
-          }
-        }
-      },
-      "StreamEventEnvelopeOfStreamChatMessageEvent": {
-        "required": [
-          "tenantId"
-        ],
-        "type": "object",
-        "properties": {
-          "tenantId": {
-            "type": "string"
-          },
-          "platform": {
-            "$ref": "#/components/schemas/Platform"
-          },
-          "timestamp": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "data": {
-            "$ref": "#/components/schemas/StreamChatMessageEvent"
-          }
-        }
-      },
-      "StreamEventEnvelopeOfStreamCheerMessageEvent": {
-        "required": [
-          "tenantId"
-        ],
-        "type": "object",
-        "properties": {
-          "tenantId": {
-            "type": "string"
-          },
-          "platform": {
-            "$ref": "#/components/schemas/Platform"
-          },
-          "timestamp": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "data": {
-            "$ref": "#/components/schemas/StreamCheerMessageEvent"
-          }
-        }
-      },
-      "StreamEventEnvelopeOfStreamMetricsEvent": {
-        "required": [
-          "tenantId"
-        ],
-        "type": "object",
-        "properties": {
-          "tenantId": {
-            "type": "string"
-          },
-          "platform": {
-            "$ref": "#/components/schemas/Platform"
-          },
-          "timestamp": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "data": {
-            "$ref": "#/components/schemas/StreamMetricsEvent"
-          }
-        }
-      },
-      "StreamEventEnvelopeOfStreamSuperChatMessageEvent": {
-        "required": [
-          "tenantId"
-        ],
-        "type": "object",
-        "properties": {
-          "tenantId": {
-            "type": "string"
-          },
-          "platform": {
-            "$ref": "#/components/schemas/Platform"
-          },
-          "timestamp": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "data": {
-            "$ref": "#/components/schemas/StreamSuperChatMessageEvent"
-          }
-        }
-      },
-      "StreamMetricsEvent": {
-        "type": "object",
-        "properties": {
-          "viewers": {
-            "type": "string"
-          }
-        }
-      },
-      "StreamSuperChatMessageEvent": {
-        "type": "object",
-        "properties": {
-          "user": {
-            "type": "object",
-            "properties": {
-              "authorId": {
-                "type": "string"
-              },
-              "author": {
-                "type": "string"
-              },
-              "authorColor": {
-                "type": "string"
-              }
-            }
-          },
-          "messageId": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "liveChatId": {
-            "type": "string"
-          },
-          "amount": {
             "type": "string"
           }
         }
