@@ -73,6 +73,20 @@ namespace YStreamUtils.Core.Data.Migrations.Postgres
                     b.ToTable("OAuthTokens");
                 });
 
+            modelBuilder.Entity("YStreamUtils.Core.Entities.PluginSettings", b =>
+                {
+                    b.Property<string>("PluginName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SettingsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("PluginName");
+
+                    b.ToTable("PluginSettings");
+                });
+
             modelBuilder.Entity("YStreamUtils.Core.Entities.UserScript", b =>
                 {
                     b.Property<string>("ScriptId")
@@ -85,8 +99,9 @@ namespace YStreamUtils.Core.Data.Migrations.Postgres
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("Topic")
-                        .HasColumnType("integer");
+                    b.Property<string>("Topic")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.HasKey("ScriptId");
 

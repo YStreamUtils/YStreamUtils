@@ -37,7 +37,7 @@ public static class AuthEndpoints
             db.OAuthConfigs.FirstOrDefault(x => x.Platform == platform));
     public static RouteGroupBuilder AddAuthEndpoints(this RouteGroupBuilder builder)
     {
-        builder.MapPost("/auth/config", async ([FromBody] OAuthConfigInput input, AppDbContext db) =>
+        builder.MapPost("/auth/config", async ([FromBody] OAuthConfigInput input, [FromServices] AppDbContext db) =>
         {
             if (string.IsNullOrWhiteSpace(input.ClientId) || string.IsNullOrWhiteSpace(input.ClientSecret))
             {

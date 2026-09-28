@@ -4,11 +4,11 @@
     import Sidebar from '$lib/components/Sidebar.svelte';
 
     import '@fontsource/jetbrains-mono';
-    import '$lib/style.css';
+    import '$lib/styles/style.css';
     import {sidebar} from '$lib/state/navigation.svelte';
     import {loadAllProfiles} from '$lib/state/auth.svelte';
-    import {setScriptState} from '$lib/state/scriptState.svelte';
     import {setSettingsState} from '$lib/state/settings.svelte';
+    import {setScriptState} from "$lib/state/scriptState.svelte";
 	
     $effect(() => {
         sessionStorage.setItem('sidebarOpen', JSON.stringify(sidebar.isOpen));
@@ -74,13 +74,10 @@
         padding: var(--space-2);
         overflow-y: auto;
         background-color: light-dark(var(--color-background, #fff), var(--neutral-950-tint, #121212));
-        background-image: light-dark(
-                none,
-                radial-gradient(
-                        circle at 80% 80%,
-                        color-mix(in srgb, var(--color-brand, #3b82f6) 10%, transparent),
-                        transparent 45%
-                )
+        background-image: radial-gradient(
+                circle at 80% 80%,
+                color-mix(in srgb, var(--color-brand, #3b82f6) 10%, transparent),
+                transparent 45%
         );
         background-repeat: no-repeat;
     }

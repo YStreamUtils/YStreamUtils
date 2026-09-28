@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using YStreamUtils.Core.Models;
 using YStreamUtils.Core.Services.Chat;
 using YStreamUtils.Core.Services.Metrics;
+using YStreamUtils.Core.Services.YouTube;
 
 namespace YStreamUtils.Endpoints;
 
@@ -13,6 +14,26 @@ public static class StreamsEndpoints
 {
     public static IEndpointRouteBuilder AddStreamsServices(this IEndpointRouteBuilder routeBuilder)
     {
+        routeBuilder.MapGet("/stream/streams", async ([FromServices] YouTubeStreamService streamService) =>
+            {
+                try
+                {
+                    var streams = await streamService.GetActiveBroadcastAsync();
+                
+                    return streams.Count == 0 
+                        ? Results.NotFound("No active streams found.") 
+                        : Results.Ok(streams);
+                }
+                catch (Exception e)
+                {
+                    return Results.InternalServerError(e.Message);
+                }
+            })
+            .Produces<List<YouTubeStreamInfo>>()
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status500InternalServerError)
+            .WithName("GetStreams");
+        
         routeBuilder.MapGet("/stream/chat/connect",
                 async ([FromQuery] Platform platform, [FromQuery] string videoId,
                     [FromServices] IServiceProvider serviceProvider) =>

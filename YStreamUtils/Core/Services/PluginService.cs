@@ -1,16 +1,28 @@
-﻿using System.IO.Compression;
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
+using System.Reflection;
+using System.Runtime.Loader;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Schema;
 using Json.Schema;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using YScriptEngine.Jint.Generators;
 using YStreamUtils.Core.Data;
 using YStreamUtils.Core.Models;
+using YStreamUtils.Core.Plugins;
+using YStreamUtils.SDK.Plugin;
+using YStreamUtils.SDK.Registry;
 
 namespace YStreamUtils.Core.Services;
 
-public class PluginService(ILogger<PluginService> logger, SettingsService settings, HttpClient httpClient, AppDbContext dbContext)
+public class PluginService(
+    ILogger<PluginService> logger,
+    HttpClient httpClient,
+    IDbContextFactory<AppDbContext> contextFactory,
+    SettingsService settingsService)
 {
     private readonly string _pluginDir = Path.Combine(Consts.ApplicationDataFolder, "plugins");
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -18,9 +30,186 @@ public class PluginService(ILogger<PluginService> logger, SettingsService settin
     private Dictionary<string, Plugin> _activePlugins = new(StringComparer.OrdinalIgnoreCase);
     private string _pluginTypeCache = string.Empty;
 
+    public async Task DownloadAndInstallPluginAsync(PluginManifest manifest)
+    {
+        var version = manifest.Version.StartsWith('v') ? manifest.Version : "v" + manifest.Version;
+        var downloadUrl =
+            $"https://github.com/{manifest.Source.Owner}/{manifest.Source.Repository}/releases/download/{version}/{manifest.Name}.dll";
+
+        logger.LogInformation("Streaming raw plugin binary file target asset: {Url}", downloadUrl);
+
+        using var response = await httpClient.GetAsync(downloadUrl);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"HTTP bundle asset download failed status: {response.StatusCode}");
+        }
+
+        var targetDir = Path.Combine(_pluginDir, manifest.Name);
+        Directory.CreateDirectory(targetDir);
+
+        var dllFilePath = Path.Combine(targetDir, $"{manifest.Name}.dll");
+
+        await using (var byteStream = await response.Content.ReadAsStreamAsync())
+        await using (var fileStream = new FileStream(dllFilePath, FileMode.Create, FileAccess.Write, FileShare.None,
+                         4096, useAsync: true))
+        {
+            await byteStream.CopyToAsync(fileStream);
+        }
+
+        var manifestPath = Path.Combine(targetDir, "manifest.json");
+        var jsonText = JsonSerializer.Serialize(manifest, Consts.IndentedSerializerOptions);
+        await File.WriteAllTextAsync(manifestPath, jsonText, Encoding.UTF8);
+
+        await ReloadLocalPluginsAsync();
+    }
+
+private async Task ReloadLocalPluginsAsync()
+{
+    await _lock.WaitAsync();
+    try
+    {
+        Directory.CreateDirectory(_pluginDir);
+        var directories = Directory.GetDirectories(_pluginDir);
+        var newActivePlugins = new Dictionary<string, Plugin>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var folderPath in directories)
+        {
+            var folderName = Path.GetFileName(folderPath);
+            var dllFiles = Directory.GetFiles(folderPath, "*.dll");
+            var dllPath = dllFiles.FirstOrDefault(f => !f.EndsWith("-PluginSDK.dll", StringComparison.OrdinalIgnoreCase));
+
+            if (dllPath == null || !File.Exists(dllPath))
+            {
+                logger.LogError("Compiled plugin binary file (.dll) missing inside directory: {Dir}", folderName);
+                continue;
+            }
+
+            try
+            {
+                var loadContext = new AssemblyLoadContext($"ALC_{folderName}", isCollectible: false);
+
+                await using var dllStream = File.OpenRead(dllPath);
+                var assembly = loadContext.LoadFromStream(dllStream);
+
+                var attr = assembly.GetCustomAttribute<PluginManifestAttribute>();
+                if (attr == null)
+                    throw new UnauthorizedAccessException($"Assembly '{Path.GetFileName(dllPath)}' is missing [assembly: PluginManifestAttribute].");
+
+                var manifest = attr.ToManifest();
+
+                var schemaNode = attr.SettingsType is not null
+                    ? Consts.IndentedSerializerOptions.GetJsonSchemaAsNode(attr.SettingsType)
+                    : new JsonObject();
+
+                var entrypointType = assembly.GetTypes()
+                    .FirstOrDefault(t => typeof(IPlugin).IsAssignableFrom(t) && t is { IsInterface: false, IsAbstract: false });
+
+                if (entrypointType == null)
+                    throw new InvalidDataException($"Entrypoint class implementing IPlugin missing inside {manifest.Name}.dll");
+
+                var pluginServiceCollection = new ServiceCollection();
+                pluginServiceCollection.AddSingleton(logger);
+
+                pluginServiceCollection.AddSingleton<INetworkCapability>(new NetworkCapability(httpClient, manifest.Name));
+                pluginServiceCollection.AddSingleton<IFileReadCapability>(new FileReadCapability(folderPath, manifest.Name));
+                pluginServiceCollection.AddSingleton<IFileWriteCapability>(new FileWriteCapability(folderPath, manifest.Name));
+
+                await using var pluginServiceProvider = pluginServiceCollection.BuildServiceProvider();
+                var pluginInstance = (IPlugin)ActivatorUtilities.CreateInstance(pluginServiceProvider, entrypointType);
+
+                var pluginNamespace = GetSafePluginNamespace(manifest.Name);
+                newActivePlugins[pluginNamespace] = new Plugin(pluginInstance, manifest, schemaNode);
+
+                logger.LogInformation("Successfully instantiated C# Plugin Engine Environment context for: {Name}", manifest.Name);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed execution configuration for folder: {Dir}", folderName);
+            }
+        }
+
+        _pluginTypeCache = BuildDynamicPluginDefinitions(newActivePlugins);
+        _activePlugins = newActivePlugins;
+    }
+    finally
+    {
+        _lock.Release();
+    }
+}
+
+    public Dictionary<string, Plugin> GetActivePlugins()
+    {
+        _lock.Wait();
+        try
+        {
+            return new Dictionary<string, Plugin>(_activePlugins);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    private static string GetSafePluginNamespace(string input) => new(input.Where(char.IsLetterOrDigit).ToArray());
+
+    private static string BuildDynamicPluginDefinitions(Dictionary<string, Plugin> plugins) =>
+        JintCmSchemaGenerator.GeneratePluginsSchema(plugins.ToDictionary(
+            x => x.Key,
+            x => x.Value.PluginInstance.GetType()
+        ));
+
+    public string GetDynamicPluginDefinitions() => _pluginTypeCache;
+
+    public string GetSettingsForPlugin(string name)
+    {
+        var safeName = GetSafePluginNamespace(name);
+        if (!_activePlugins.TryGetValue(safeName, out var plugin))
+            throw new KeyNotFoundException($"Plugin {name} not found");
+        using var dbContext = contextFactory.CreateDbContext();
+        var pluginSettings = dbContext.PluginSettings.FirstOrDefault(x => x.PluginName == plugin.Manifest.Name);
+        return pluginSettings == null
+            ? "{}"
+            : JsonSerializer.Serialize(pluginSettings.SettingsJson);
+    }
+
+    public string GetSettingsSchemaForPlugin(string name)
+    {
+        var safeName = GetSafePluginNamespace(name);
+        _activePlugins.TryGetValue(safeName, out var plugin);
+
+        return plugin?.PluginSettingsSchema.ToJsonString() ?? "{}";
+    }
+
+    public void SetSettingsForPlugin(string name, string newSettings)
+    {
+        var safeName = GetSafePluginNamespace(name);
+        _activePlugins.TryGetValue(safeName, out var plugin);
+        if (plugin is null)
+        {
+            throw new KeyNotFoundException($"Plugin {name} not found");
+        }
+
+        var schema = JsonSchema.FromText(plugin.PluginSettingsSchema.ToJsonString());
+
+        using var jsonDocument = JsonDocument.Parse(newSettings);
+
+        var result = schema.Evaluate(jsonDocument.RootElement);
+        if (!result.IsValid)
+        {
+            var errors = string.Join("; ", result.Errors?.Select(e => $"{e.Key}: {e.Value}") ?? []);
+            throw new ArgumentException($"Invalid plugin settings configuration. Errors: {errors}");
+        }
+
+        using var dbContext = contextFactory.CreateDbContext();
+
+        var pluginSettings = dbContext.PluginSettings.First(x => x.PluginName == plugin.Manifest.Name);
+        pluginSettings.SettingsJson = newSettings;
+        dbContext.SaveChanges();
+    }
+
     public async Task<List<PluginManifest>> FetchAllRegistryPluginsAsync()
     {
-        var registryUrls = settings.GetSettings().PluginSettings.Repositories;
+        var registryUrls = settingsService.GetSettings().PluginSettings.Repositories;
         if (registryUrls == null || registryUrls.Count == 0)
         {
             throw new InvalidOperationException("No plugin registry repository endpoints are configured in settings.");
@@ -50,186 +239,5 @@ public class PluginService(ILogger<PluginService> logger, SettingsService settin
     {
         var distribution = await httpClient.GetFromJsonAsync<RegistryDistribution>(url);
         return distribution?.Plugins ?? [];
-    }
-
-    public async Task DownloadAndInstallPluginAsync(PluginManifest manifest)
-    {
-        if (string.IsNullOrEmpty(manifest.Name) || string.IsNullOrEmpty(manifest.EntryPoint) ||
-            string.IsNullOrEmpty(manifest.Source.Owner) || string.IsNullOrEmpty(manifest.Source.Repository) ||
-            string.IsNullOrEmpty(manifest.Version))
-        {
-            throw new ArgumentException(
-                "Cannot process manifest: missing explicit identification or version metadata properties.");
-        }
-
-        var version = manifest.Version.StartsWith('v') ? manifest.Version : "v" + manifest.Version;
-        var downloadUrl =
-            $"https://github.com/{manifest.Source.Owner}/{manifest.Source.Repository}/releases/download/{version}/{manifest.Name}.zip";
-
-        logger.LogInformation("Streaming structured zip distribution target archive: {Url}", downloadUrl);
-
-        using var response = await httpClient.GetAsync(downloadUrl);
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new HttpRequestException($"HTTP bundle asset download failed status: {response.StatusCode}");
-        }
-
-        var targetDir = Path.Combine(_pluginDir, manifest.Name);
-        Directory.CreateDirectory(targetDir);
-
-        await using var byteStream = await response.Content.ReadAsStreamAsync();
-        await using var archive = new ZipArchive(byteStream, ZipArchiveMode.Read);
-
-        foreach (var entry in archive.Entries)
-        {
-            var parts = entry.FullName.Split('/', 2);
-            var relativePath = (parts.Length == 2 && parts[0] == manifest.Name) ? parts[1] : entry.FullName;
-
-            if (string.Equals(relativePath, "manifest.json", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var filePath = Path.Combine(targetDir, relativePath);
-
-            if (string.IsNullOrEmpty(entry.Name))
-            {
-                Directory.CreateDirectory(filePath);
-                continue;
-            }
-
-            Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
-            await entry.ExtractToFileAsync(filePath, overwrite: true);
-        }
-
-        var manifestPath = Path.Combine(targetDir, "manifest.json");
-        var jsonText = JsonSerializer.Serialize(manifest);
-        await File.WriteAllTextAsync(manifestPath, jsonText, Encoding.UTF8);
-
-        await ReloadLocalPluginsAsync();
-    }
-
-    public Dictionary<string, Plugin> GetActivePlugins()
-    {
-        _lock.Wait();
-        try
-        {
-            return new Dictionary<string, Plugin>(_activePlugins);
-        }
-        finally
-        {
-            _lock.Release();
-        }
-    }
-
-    private async Task ReloadLocalPluginsAsync()
-    {
-        await _lock.WaitAsync();
-        try
-        {
-            Directory.CreateDirectory(_pluginDir);
-            var directories = Directory.GetDirectories(_pluginDir);
-            var newActivePlugins = new Dictionary<string, Plugin>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var folderPath in directories)
-            {
-                var folderName = Path.GetFileName(folderPath);
-                var manifestPath = Path.Combine(folderPath, "manifest.json");
-
-                if (!File.Exists(manifestPath))
-                {
-                    logger.LogWarning("Failed to locate manifest.json inside directory: {Dir}", folderName);
-                    continue;
-                }
-
-                try
-                {
-                    var jsonText = await File.ReadAllTextAsync(manifestPath);
-                    var manifest = JsonSerializer.Deserialize<PluginManifest>(jsonText)
-                                   ?? throw new InvalidDataException();
-
-                    logger.LogInformation("Found plugin {Name} at {Path}", manifest.Name, manifestPath);
-                    var pluginNamespace = GetSafePluginNamespace(manifest.Name);
-
-                    var fullEntryPointPath = Path.Combine(folderPath, manifest.EntryPoint);
-                    if (!File.Exists(fullEntryPointPath))
-                    {
-                        logger.LogError("EntryPoint file missing for plugin {Name}: {Path}", manifest.Name,
-                            fullEntryPointPath);
-                        continue;
-                    }
-
-                    var bundledJs = await File.ReadAllTextAsync(fullEntryPointPath, Encoding.UTF8);
-
-                    var typeDefs = string.Empty;
-                    var defFilePath = Path.Combine(folderPath, "index.d.ts");
-                    if (File.Exists(defFilePath))
-                    {
-                        typeDefs = await File.ReadAllTextAsync(defFilePath);
-                    }
-
-                    var settingsSchema = string.Empty;
-                    var schemaFilePath = Path.Combine(folderPath, "schema.json");
-                    if (File.Exists(schemaFilePath))
-                    {
-                        settingsSchema = await File.ReadAllTextAsync(schemaFilePath);
-                    }
-
-                    newActivePlugins[pluginNamespace] = new Plugin(bundledJs, typeDefs, manifest, settingsSchema);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex,
-                        "Failed decoding manifest.json or loading pre-bundled script for directory: {Dir}", folderName);
-                }
-            }
-
-            _pluginTypeCache = BuildDynamicPluginDefinitions(newActivePlugins);
-            _activePlugins = newActivePlugins;
-        }
-        finally
-        {
-            _lock.Release();
-        }
-    }
-
-    private static string GetSafePluginNamespace(string input) => new(input.Where(char.IsLetterOrDigit).ToArray());
-
-    private static string BuildDynamicPluginDefinitions(Dictionary<string, Plugin> plugins) =>
-        string.Join("\n", plugins.Values.Select(p => p.TypeScriptDefs));
-
-    public string GetDynamicPluginDefinitions() => _pluginTypeCache;
-
-    public string GetSettingsForPlugin(string name)
-    {
-        if(!_activePlugins.TryGetValue(name, out var plugin))
-            throw new KeyNotFoundException($"Plugin {name} not found");
-        var pluginSettings = dbContext.PluginSettings.First(x => x.PluginName == plugin.Manifest.Name);
-        return JsonSerializer.Serialize(pluginSettings.SettingsJson);
-    }
-    public string GetSettingsSchemaForPlugin(string name)
-    {
-        _activePlugins.TryGetValue(name, out var plugin);
-        return plugin?.PluginSettingsSchema ?? string.Empty;
-    }
-    public void SetSettingsForPlugin(string name, string newSettings)
-    {
-        _activePlugins.TryGetValue(name, out var plugin);
-        if (plugin is null) throw new KeyNotFoundException($"Plugin {name} not found");
-
-        var schema = JsonSchema.FromText(plugin.PluginSettingsSchema);
-        
-        using var jsonDocument = JsonDocument.Parse(newSettings);
-        var result = schema.Evaluate(jsonDocument.RootElement);
-
-        if (!result.IsValid)
-        {
-            throw new ArgumentException("Invalid plugin settings structure");
-        }
-
-        var pluginSettings = dbContext.PluginSettings.First(x => x.PluginName == plugin.Manifest.Name);
-        pluginSettings.SettingsJson = newSettings;
-    
-        dbContext.SaveChanges();
     }
 }

@@ -17,12 +17,20 @@ builder.AddYStreamUtils();
 
 if (config["Database:Provider"] == "postgres")
 {
-    builder.Services.AddDbContext<AppDbContext, PostgresDbContext>();
+    builder.Services.AddDbContextFactory<PostgresDbContext>();
+    
+    builder.Services.AddSingleton<IDbContextFactory<AppDbContext>>(sp => 
+        new DbContextFactoryBridge<PostgresDbContext>(sp.GetRequiredService<IDbContextFactory<PostgresDbContext>>()));
 }
 else
 {
-    builder.Services.AddDbContext<AppDbContext, SqliteDbContext>();
+    builder.Services.AddDbContextFactory<SqliteDbContext>();
+    
+    builder.Services.AddSingleton<IDbContextFactory<AppDbContext>>(sp => 
+        new DbContextFactoryBridge<SqliteDbContext>(sp.GetRequiredService<IDbContextFactory<SqliteDbContext>>()));
 }
+builder.Services.AddTransient<AppDbContext>(sp => 
+    sp.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext());
 
 var app = builder.Build();
 

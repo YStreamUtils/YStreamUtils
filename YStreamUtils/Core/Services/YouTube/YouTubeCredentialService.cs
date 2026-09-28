@@ -3,6 +3,7 @@ using Google.Apis.Auth.OAuth2.Flows;
 using Google.Apis.Services;
 using Google.Apis.Util.Store;
 using Google.Apis.YouTube.v3;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using YStreamUtils.Core.Data;
 using YStreamUtils.Core.Models;
@@ -10,11 +11,13 @@ using YStreamUtils.Endpoints;
 
 namespace YStreamUtils.Core.Services.YouTube;
 
-public class YouTubeCredentialService(AppDbContext db, IDataStore dataStore, ILogger<YouTubeCredentialService> logger)
+public class YouTubeCredentialService(IDbContextFactory<AppDbContext> contextFactory, IDataStore dataStore, ILogger<YouTubeCredentialService> logger)
 {
     private async Task<UserCredential> GetCredential(bool isBot)
     {
-        var settings = await AuthEndpoints.GetConfigByPlatformQuery(db, Platform.YouTube);
+        await using var dbContext = await contextFactory.CreateDbContextAsync();
+
+        var settings = await AuthEndpoints.GetConfigByPlatformQuery(dbContext, Platform.YouTube);
 
         if (settings == null || string.IsNullOrEmpty(settings.ClientId) || string.IsNullOrEmpty(settings.ClientSecret))
         {

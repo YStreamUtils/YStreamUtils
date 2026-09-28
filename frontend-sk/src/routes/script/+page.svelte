@@ -4,14 +4,14 @@
 	import MonacoEditor from '$lib/components/MonacoEditor.svelte';
 	import Select from '$lib/components/base/Select.svelte';
 	import Tree, { type TreeNode } from '$lib/components/base/Tree.svelte';
-	import { getScriptState } from '$lib/state/scriptState.svelte';
+	import {getScriptState, type Script} from '$lib/state/scriptState.svelte';
 	import { Check, Trash } from '@lucide/svelte';
 	import { deleteScriptById, EventKey, invokeScriptTest, saveScript } from '$lib/api';
 
 	const scriptState = getScriptState();
 
 	let currentScriptName = $state(Object.keys(scriptState.scripts)[0] || '');
-	let currentScript = $derived(scriptState.scripts[currentScriptName]);
+	let currentScript: Script | undefined = $derived(scriptState.scripts[currentScriptName]);
 
 	function createScript() {
 		const name = crypto.randomUUID().substring(0, 12);
@@ -22,8 +22,8 @@
 	async function saveCurrentScript() {
 		saveScript({
 			scriptId: currentScriptName,
-			topic: currentScript.event,
-			source: currentScript.source,
+			topic: currentScript?.event,
+			source: currentScript?.source,
 			isEnabled: true
 		});
 	}
@@ -101,7 +101,7 @@
 							>Enable</Button
 						>
 					{/if}
-					{#if currentScript.event == EventKey.ManualInvoke}
+					{#if currentScript.event == EventKey["app:manual"]}
 						<Button variant="accent" onclick={async () => await invokeScriptTest()}
 							>Test Script</Button
 						>

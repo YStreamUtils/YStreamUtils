@@ -1,160 +1,180 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
-	import loader from '@monaco-editor/loader';
-	import * as monacoCore from 'monaco-editor';
-	import { createHighlighter } from 'shiki';
-	import { shikiToMonaco } from '@shikijs/monaco';
+    import { onDestroy, onMount } from 'svelte';
+    import { EditorView, basicSetup } from 'codemirror';
+    import { javascript } from '@codemirror/lang-javascript';
+    import { oneDark } from '@codemirror/theme-one-dark';
+    import { Compartment, EditorState } from '@codemirror/state';
+    import { acceptCompletion, autocompletion } from '@codemirror/autocomplete';
+    import { indentMore, indentLess } from '@codemirror/commands';
+    import { keymap } from '@codemirror/view';
 
-	import type { editor, IDisposable } from 'monaco-editor';
-	import { getMonacoEnvironment, EventKey } from '$lib/api';
-	import type { EventKey as EventKeyType } from '$lib/api';
+    import type { EventKey as EventKeyType } from '$lib/api';
+    import { EventKey, getMonacoEnvironment } from '$lib/api';
 
-	loader.config({ monaco: monacoCore });
+    let {
+        userScript = $bindable('// Type "plugins." or "context." here!n'),
+        currentKey = EventKey["app:manual"]
+    }: Props = $props();
 
-	let {
-		userScript = $bindable(
-			'// Try typing "eventData." or "plugins." here!\n\nhost.log("info", "Hello from Goja!");\n'
-		),
-		currentKey = EventKey.ManualInvoke
-	}: Props = $props();
+    interface Props {
+        currentKey: EventKeyType;
+        userScript: string;
+    }
 
-	interface Props {
-		currentKey: EventKeyType;
-		userScript: string;
-	}
+    let container: HTMLDivElement;
+    let viewInstance = $state.raw<EditorView | null>(null);
+    let isUpdatingFromState = false;
 
-	let container: HTMLDivElement;
+    const autocompleteCompartment = new Compartment();
 
-	let monacoInstance = $state.raw<typeof monacoCore>();
-	let editorInstance = $state.raw<editor.IStandaloneCodeEditor>();
-	let modelInstance = $state.raw<editor.ITextModel | null>(null);
-	let extraLibsDisposable = $state.raw<IDisposable | null>(null);
-	let isUpdatingFromModel = $state(false);
+    let masterGlobals = $state.raw<any>({});
+    let masterTypes = $state.raw<any>({});
 
-	async function updateTypings(currentKey: EventKeyType): Promise<void> {
-		if (!monacoInstance) return;
-		try {
-			const tsDefinitions = await getMonacoEnvironment(currentKey);
-			if (tsDefinitions.status != 200 || !tsDefinitions.data) {
-				console.warn(
-					'[Monaco Environment] No typings found for the current event key:',
-					currentKey
-				);
-				return;
-			}
+    async function updateSchema(currentKey: EventKeyType): Promise<void> {
+        if (!viewInstance) return;
+        try {
+            const res = await getMonacoEnvironment(currentKey);
+            if (res.status !== 200 || !res.data) return;
 
-			if (extraLibsDisposable) {
-				extraLibsDisposable.dispose();
-			}
+            const rawJsonPayload = JSON.parse(res.data.definitions);
+            const { globals, types } = rawJsonPayload;
 
-			const tsDefaults = monacoInstance.typescript.typescriptDefaults;
-			const typeUri = 'file:///node_modules/@types/ystream-internal/index.d.ts';
+            masterGlobals = { ...globals };
+            masterTypes = { ...types };
 
-			extraLibsDisposable = tsDefaults.addExtraLib(tsDefinitions.data.definitions, typeUri);
-		} catch (err) {
-			console.error('[Monaco Environment] Failed to inject dynamic backend payloads:', err);
-		}
-	}
+            const jintCompleter = autocompletion({
+                override: [
+                    async (ctx) => {
+                        const before = ctx.matchBefore(/[a-zA-Z0-9_.]*/);
+                        if (!before || (before.from === before.to && !ctx.explicit)) return null;
 
-	onMount(async () => {
-		try {
-			const monaco = await loader.init();
-			monacoInstance = monaco as typeof monacoCore;
+                        const parts = before.text.split('.');
+                        const currentTypedWord = parts[parts.length - 1];
 
-			const tsDefaults = monacoInstance.typescript.typescriptDefaults;
-			tsDefaults?.setCompilerOptions({
-				target: monacoInstance.typescript.ScriptTarget.ES2020,
-				module: monacoInstance.typescript.ModuleKind.None,
-				strict: true,
-				allowNonTsExtensions: true,
-				noLib: false
-			});
+                        let currentScope: any = masterGlobals;
 
-			await updateTypings(currentKey);
+                        for (let i = 0; i < parts.length - 1; i++) {
+                            const part = parts[i];
+                            if (!currentScope) return null;
 
-			const fileUri = monaco.Uri.parse('file:///main.ts');
-			modelInstance = monaco.editor.createModel(userScript, 'typescript', fileUri);
+                            let nextNode = currentScope[part];
 
-			const highlighter = await createHighlighter({
-				themes: ['one-dark-pro'],
-				langs: ['typescript', 'javascript', 'json']
-			});
+                            if (!nextNode && currentScope[`${part}()`]) {
+                                nextNode = currentScope[`${part}()`]?.returns;
+                            }
 
-			shikiToMonaco(highlighter, monacoInstance);
+                            if (nextNode && typeof nextNode === 'object' && nextNode.inlineMembers) {
+                                currentScope = nextNode.inlineMembers;
+                            } else if (nextNode && typeof nextNode === 'object' && nextNode.referenceType) {
+                                currentScope = masterTypes[nextNode.referenceType];
+                            } else if (nextNode && typeof nextNode === 'object' && nextNode.arrayOfType) {
+                                currentScope = nextNode.arrayOfType.referenceType ? masterTypes[nextNode.arrayOfType.referenceType] : null;
+                            } else {
+                                currentScope = nextNode;
+                            }
+                        }
 
-			editorInstance = monacoInstance.editor.create(container, {
-				model: modelInstance,
-				automaticLayout: false,
-				theme: 'one-dark-pro',
-				minimap: { enabled: false }
-			});
+                        if (!currentScope || typeof currentScope !== 'object') return null;
 
-			editorInstance.onDidChangeModelContent(() => {
-				if (isUpdatingFromModel) return;
+                        const options = Object.keys(currentScope).map((key) => {
+                            const value = currentScope[key];
+                            const isCleanMethod = key.endsWith('()') || (value && value.isMethod);
+                            const displayLabel = key.endsWith('()') ? key.slice(0, -2) : key;
 
-				isUpdatingFromModel = true;
-				userScript = editorInstance?.getValue() || '';
-				isUpdatingFromModel = false;
-			});
-		} catch (error) {
-			console.error('[Monaco Loader Element Injection Failed]:', error);
-		}
-	});
+                            let detailStr = 'Property';
+                            if (isCleanMethod) {
+                                detailStr = value.detail || '()';
+                            } else if (value && value.referenceType) {
+                                detailStr = value.referenceType;
+                            } else if (typeof value === 'string') {
+                                detailStr = value;
+                            }
+
+                            return {
+                                label: displayLabel,
+                                type: isCleanMethod ? 'method' : 'property',
+                                detail: detailStr
+                            };
+                        });
+
+                        return {
+                            from: before.from + before.text.lastIndexOf('.') + 1,
+                            options: options.filter(o => o.label.startsWith(currentTypedWord))
+                        };
+                    }
+                ]
+            });
+
+            viewInstance.dispatch({
+                effects: autocompleteCompartment.reconfigure(jintCompleter)
+            });
+        } catch (err) {
+            console.error('[CodeMirror JSON Parsing Engine] Schema Sync failure:', err);
+        }
+    }
+
+    onMount(() => {
+        const tabInterceptor = keymap.of([
+            {
+                key: 'Tab',
+                run: (targetView) => {
+                    if (acceptCompletion(targetView)) {
+                        return true;
+                    }
+
+                    return indentMore(targetView);
+                }
+            },
+            {
+                key: 'Shift-Tab',
+                run: (targetView) => {
+                    return indentLess(targetView);
+                }
+            }
+        ]);
+        
+        
+        viewInstance = new EditorView({
+            parent: container,
+            state: EditorState.create({
+                doc: userScript,
+                extensions: [
+                    tabInterceptor,
+                    basicSetup,
+                    oneDark,
+                    javascript(),
+                    autocompleteCompartment.of([]),
+                    EditorView.updateListener.of((u) => {
+                        if (u.docChanged && !isUpdatingFromState) {
+                            isUpdatingFromState = true;
+                            userScript = u.state.doc.toString();
+                            isUpdatingFromState = false;
+                        }
+                    })
+                ]
+            })
+        });
+        updateSchema(currentKey);
+    });
+
+	$effect(() => { if (viewInstance && currentKey) updateSchema(currentKey); });
 
 	$effect(() => {
-		if (monacoInstance && currentKey) {
-			updateTypings(currentKey);
-		}
-	});
+        if (viewInstance && userScript !== viewInstance.state.doc.toString() && !isUpdatingFromState) {
+            isUpdatingFromState = true;
+            viewInstance.dispatch({
+                changes: { from: 0, to: viewInstance.state.doc.length, insert: userScript }
+            });
+            isUpdatingFromState = false;
+        }
+    });
 
-	$effect(() => {
-		if (editorInstance && userScript !== editorInstance.getValue() && !isUpdatingFromModel) {
-			isUpdatingFromModel = true;
-			editorInstance.setValue(userScript);
-			isUpdatingFromModel = false;
-		}
-	});
-
-	onDestroy(() => {
-		if (extraLibsDisposable) {
-			extraLibsDisposable.dispose();
-		}
-		if (modelInstance) {
-			modelInstance.dispose();
-		}
-		if (editorInstance) {
-			editorInstance.dispose();
-		}
-		if (container) {
-			container.innerHTML = '';
-		}
-	});
-
-	function handleResize() {
-		editorInstance?.layout();
-	}
+    onDestroy(() => viewInstance?.destroy());
 </script>
 
-<svelte:window onresize={handleResize} />
-
-<div class="editor-outer-wrapper">
-	<div class="editor-viewport" bind:this={container}></div>
-</div>
+<div class="editor-viewport" bind:this={container}></div>
 
 <style>
-	.editor-outer-wrapper {
-		flex-grow: 1;
-		width: 100%;
-		min-width: 0;
-		min-height: 0;
-		padding-top: 1rem;
-	}
-
-	.editor-viewport {
-		display: flex;
-		flex-wrap: wrap;
-		width: 100%;
-		height: calc(100% - 1px);
-		border-radius: 4px;
-	}
+    :global(.cm-editor) { height: 100% !important; }
+    .editor-viewport { width: 100%; height: 500px; border-radius: 4px; overflow: hidden; }
 </style>

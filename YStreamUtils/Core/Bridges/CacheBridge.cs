@@ -1,113 +1,98 @@
-﻿using Jint;
-using Jint.Native;
-using Jint.Native.Json;
-using YStreamUtils.Core.Data;
+﻿using YStreamUtils.Core.Data;
 using YStreamUtils.Core.Entities;
 
 namespace YStreamUtils.Core.Bridges;
 
-public class CacheBridge(string name, AppDbContext dbContext) : IBridge
+public class CacheBridge(string name, AppDbContext dbContext)
 {
     private readonly ReaderWriterLockSlim _lock = new();
 
     private string CreateKey(string key) => $"{name}:{key}";
-    
-    public void Register(Engine vm, JsObject hostObj)
+
+    public object? Get(string key)
     {
-        var cacheObj = new JsObject(vm);
-
-        cacheObj.Set("get", JsValue.FromObject(vm, new Func<string, JsValue>((key) =>
+        _lock.EnterReadLock();
+        try
         {
-            _lock.EnterReadLock();
-            try
-            {
-                var fullKey = CreateKey(key);
-                var cacheEntry = dbContext.Caches.FirstOrDefault(x => x.Key == fullKey);
-                
-                if (cacheEntry == null || string.IsNullOrEmpty(cacheEntry.Value))
-                {
-                    return JsValue.Null;
-                }
+            var fullKey = CreateKey(key);
+            var cacheEntry = dbContext.Caches.FirstOrDefault(x => x.Key == fullKey);
 
-                var parser = new JsonParser(vm);
-                return parser.Parse(cacheEntry.Value);
-            }
-            finally
+            if (cacheEntry == null || string.IsNullOrEmpty(cacheEntry.Value))
             {
-                _lock.ExitReadLock();
+                return null;
             }
-        })));
 
-        cacheObj.Set("set", JsValue.FromObject(vm, new Action<string, JsValue>((key, val) =>
+            return cacheEntry.Value;
+        }
+        finally
         {
-            _lock.EnterWriteLock();
-            try
-            {
-                var fullKey = CreateKey(key);
-                
-                var serializer = new JsonSerializer(vm);
-                var stringified = serializer.Serialize(val, JsValue.Undefined, JsValue.Undefined);
-                var stringValue = stringified.AsString();
+            _lock.ExitReadLock();
+        }
+    }
 
-                var cacheEntry = dbContext.Caches.FirstOrDefault(x => x.Key == fullKey);
-                if (cacheEntry != null)
-                {
-                    cacheEntry.Value = stringValue;
-                }
-                else
-                {
-                    dbContext.Caches.Add(new Cache 
-                    { 
-                        Key = fullKey, 
-                        Value = stringValue 
-                    });
-                }
-                
-                dbContext.SaveChanges();
-            }
-            finally
-            {
-                _lock.ExitWriteLock();
-            }
-        })));
-
-        cacheObj.Set("delete", JsValue.FromObject(vm, new Action<string>((key) =>
+    public void Set(string key, object val)
+    {
+        _lock.EnterWriteLock();
+        try
         {
-            _lock.EnterWriteLock();
-            try
+            var fullKey = CreateKey(key);
+            var stringValue = val.ToString() ?? string.Empty;
+
+            var cacheEntry = dbContext.Caches.FirstOrDefault(x => x.Key == fullKey);
+            if (cacheEntry != null)
             {
-                var fullKey = CreateKey(key);
-                var cacheEntry = dbContext.Caches.FirstOrDefault(x => x.Key == fullKey);
-                
-                if (cacheEntry != null)
+                cacheEntry.Value = stringValue;
+            }
+            else
+            {
+                dbContext.Caches.Add(new Cache
                 {
-                    dbContext.Caches.Remove(cacheEntry);
-                    dbContext.SaveChanges();
-                }
+                    Key = fullKey,
+                    Value = stringValue
+                });
             }
-            finally
-            {
-                _lock.ExitWriteLock();
-            }
-        })));
 
-        cacheObj.Set("clear", JsValue.FromObject(vm, new Action(() =>
+            dbContext.SaveChanges();
+        }
+        finally
         {
-            _lock.EnterWriteLock();
-            try
-            {
-                var prefix = $"{name}:";
-                var entriesToRemove = dbContext.Caches.Where(x => x.Key.StartsWith(prefix));
-                
-                dbContext.Caches.RemoveRange(entriesToRemove);
-                dbContext.SaveChanges();
-            }
-            finally
-            {
-                _lock.ExitWriteLock();
-            }
-        })));
+            _lock.ExitWriteLock();
+        }
+    }
 
-        hostObj.Set("cache", cacheObj);
+    public void Delete(string key)
+    {
+        _lock.EnterWriteLock();
+        try
+        {
+            var fullKey = CreateKey(key);
+            var cacheEntry = dbContext.Caches.FirstOrDefault(x => x.Key == fullKey);
+
+            if (cacheEntry == null) return;
+
+            dbContext.Caches.Remove(cacheEntry);
+            dbContext.SaveChanges();
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
+
+    public void Clear()
+    {
+        _lock.EnterWriteLock();
+        try
+        {
+            var prefix = $"{name}:";
+            var entriesToRemove = dbContext.Caches.Where(x => x.Key.StartsWith(prefix));
+
+            dbContext.Caches.RemoveRange(entriesToRemove);
+            dbContext.SaveChanges();
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
     }
 }

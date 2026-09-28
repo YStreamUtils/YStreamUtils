@@ -2,13 +2,6 @@ import { getContext, onMount, setContext } from 'svelte';
 import { EventKey, type Platform } from '$lib/api';
 import { SvelteMap } from 'svelte/reactivity';
 
-export interface StreamEventEnvelope<T> {
-	event: EventKey;
-	platform: Platform;
-	timestamp?: string;
-	data: T;
-}
-
 export class GlobalEventStreamWrapper {
 	#rawEvent = $state<StreamEventEnvelope<unknown> | null>(null);
 
@@ -60,8 +53,8 @@ export function getEventStreamState(): GlobalEventStreamWrapper {
 }
 
 export const EventDisplayNames = new SvelteMap<EventKey, string>([
-	[EventKey.ManualInvoke, 'Manual Invoke'],
-	[EventKey.StreamChatMessage, 'Stream Chat Message (all)'],
-	[EventKey.YoutubeSuperChat, 'YouTube SuperChat'],
-	[EventKey.ApplicationLog, 'Application Logs']
+	[EventKey["app:manual"], 'Manual Invoke'],
+	[EventKey["stream:chat_message"], 'Stream Chat Message (all)'],
+	[EventKey["stream:youtube:superchat"], 'YouTube SuperChat'],
+	[EventKey["app:log"], 'Application Logs']
 ]);

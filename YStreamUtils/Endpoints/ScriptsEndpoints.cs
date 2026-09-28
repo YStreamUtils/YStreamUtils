@@ -7,13 +7,12 @@ using Microsoft.EntityFrameworkCore;
 using YStreamUtils.Core.Data;
 using YStreamUtils.Core.Entities;
 using YStreamUtils.Core.Events;
-using YStreamUtils.Core.Models;
 using YStreamUtils.Core.Services;
 
 namespace YStreamUtils.Endpoints;
 
+// ReSharper disable once ClassNeverInstantiated.Global
 public record RegisterScriptRequest(EventKey Topic, string ScriptId, string RawJsString);
-public record SaveScriptRequest(EventKey Topic, string ScriptId, string RawJsString, bool IsEnabled);
 public record ScriptMetadataResponse([property: JsonPropertyName("definitions")] string Definitions);
 
 public static class ScriptsEndpoints
@@ -30,7 +29,7 @@ public static class ScriptsEndpoints
         groupBuilder.MapGet("/scripts/monaco-env/{topic}", (EventKey topic, [FromServices] ScriptsService scriptsService) =>
             {
                 var environment = scriptsService.GetMonacoEnvironment(topic);
-                return Results.Json(new ScriptMetadataResponse(environment));
+                return Results.Ok(new ScriptMetadataResponse(environment));
             })
             .Produces<ScriptMetadataResponse>()
             .WithName("GetMonacoEnvironment");

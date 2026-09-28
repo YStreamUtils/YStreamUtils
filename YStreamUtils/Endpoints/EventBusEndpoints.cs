@@ -14,7 +14,7 @@ public static class EventBusEndpoints
     {
         groupBuilder.MapPost("/events/invoke", async ([FromServices] IEventBus eventBus) =>
             {
-                var envelope = StreamEventEnvelope<object>.Create(
+                var envelope = StreamEventEnvelope<EmptyStruct>.Create(
                     Platform.YouTube
                 );
 
@@ -27,7 +27,7 @@ public static class EventBusEndpoints
         groupBuilder.MapGet("/events/listen", async (
                 [FromQuery] EventKey[]? eventKey,
                 HttpContext context,
-                IEventBus eventBus,
+                [FromServices] IEventBus eventBus,
                 CancellationToken cancellationToken) =>
             {
 

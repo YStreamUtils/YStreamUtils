@@ -2,8 +2,8 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-using YStreamUtils.Core.Models;
 using YStreamUtils.Core.Services;
+using YStreamUtils.SDK.Plugin;
 
 namespace YStreamUtils.Endpoints;
 
@@ -31,8 +31,27 @@ public static class PluginsEndpoints
                 var installed = pluginService.GetActivePlugins().Select(s => s.Value.Manifest);
                 return Results.Ok(installed);
             })
-            .Produces<PluginManifest>()
+            .Produces<List<PluginManifest>>()
             .WithName("GetInstalledPlugins");
+
+        groupBuilder.MapGet("/plugins/settings",
+            ([FromServices] PluginService pluginService, [FromQuery] string pluginName) =>
+            {
+                return pluginService.GetActivePlugins().TryGetValue(pluginName, out var plugin) 
+                    ? Results.Json(plugin) 
+                    : Results.NotFound();
+            })
+            .WithName("GetPluginSettings");
+
+        groupBuilder.MapGet("/plugins/settings/schema",
+            ([FromServices] PluginService pluginService, [FromQuery] string pluginName) =>
+            {
+                return pluginService.GetActivePlugins().TryGetValue(pluginName, out var plugin)
+                    ? Results.Ok(plugin.PluginSettingsSchema.ToJsonString())
+                    : Results.NotFound();
+            })
+            .Produces<string>()
+            .WithName("GetPluginSettingsSchema");
 
         return groupBuilder;
     }

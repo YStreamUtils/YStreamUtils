@@ -68,6 +68,20 @@ namespace YStreamUtils.Core.Data.Migrations.Sqlite
                     b.ToTable("OAuthTokens");
                 });
 
+            modelBuilder.Entity("YStreamUtils.Core.Entities.PluginSettings", b =>
+                {
+                    b.Property<string>("PluginName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SettingsJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("PluginName");
+
+                    b.ToTable("PluginSettings");
+                });
+
             modelBuilder.Entity("YStreamUtils.Core.Entities.UserScript", b =>
                 {
                     b.Property<string>("ScriptId")
@@ -80,8 +94,9 @@ namespace YStreamUtils.Core.Data.Migrations.Sqlite
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("Topic")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Topic")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.HasKey("ScriptId");
 

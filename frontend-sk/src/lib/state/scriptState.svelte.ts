@@ -18,7 +18,7 @@ export class ScriptState {
 		onMount(async () => {
 			const loaded = await getAllScripts();
 
-			if (loaded == null || Object.keys(loaded).length === 0) {
+			if (loaded == null || Object.keys(loaded.data.values()).length === 0) {
 				return;
 			}
 
@@ -26,7 +26,7 @@ export class ScriptState {
 
 			const incomingScripts: Record<string, Script> = {};
 
-			for (const value of loaded.data) {
+			for (const value of loaded.data.values()) {
 				if (value == null) continue;
 
 				incomingScripts[value.scriptId!] = {
@@ -43,7 +43,7 @@ export class ScriptState {
 		return {
 			source:
 				'// Try typing "eventData." or "plugins." here!\n\nhost.log("info", "Hello from Goja!");\n',
-			event: EventKey.ManualInvoke
+			event: EventKey["app:manual"]
 		};
 	}
 }

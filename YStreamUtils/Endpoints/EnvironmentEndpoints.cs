@@ -1,11 +1,11 @@
-﻿using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using YStreamUtils.Core.Models;
 
 namespace YStreamUtils.Endpoints;
 
+// ReSharper disable once NotAccessedPositionalProperty.Global
 public record EnvironmentPlatformResponse(ApplicationPlatform Platform);
 public static class EnvironmentEndpoints
 {

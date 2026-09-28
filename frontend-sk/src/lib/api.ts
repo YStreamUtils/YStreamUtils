@@ -15,12 +15,6 @@ export const ApplicationPlatform = {
   Unknown: 'Unknown',
 } as const;
 
-export interface BaseUserData {
-  authorId?: string;
-  author?: string;
-  authorColor?: string;
-}
-
 export interface ConnectUrlResponse {
   url: string;
 }
@@ -39,11 +33,11 @@ export type EventKey = typeof EventKey[keyof typeof EventKey];
 
 
 export const EventKey = {
-  ManualInvoke: 'ManualInvoke',
-  StreamChatMessage: 'StreamChatMessage',
-  YoutubeSuperChat: 'YoutubeSuperChat',
-  ApplicationLog: 'ApplicationLog',
-  StreamMetrics: 'StreamMetrics',
+  'app:manual': 'app:manual',
+  'stream:chat_message': 'stream:chat_message',
+  'stream:youtube:superchat': 'stream:youtube:superchat',
+  'app:log': 'app:log',
+  'stream:metrics': 'stream:metrics',
 } as const;
 
 export type Platform = typeof Platform[keyof typeof Platform];
@@ -68,7 +62,6 @@ export interface SourceConfig {
 export interface PluginManifest {
   name: string;
   version: string;
-  entryPoint: string;
   permissions: string[];
   authors: string[];
   source: SourceConfig;
@@ -113,60 +106,9 @@ export interface StreamChatMessageEvent {
   liveChatId?: string;
 }
 
-export type StreamCheerMessageEventUser = {
-  authorId?: string;
-  author?: string;
-  authorColor?: string;
-};
-
-export interface StreamCheerMessageEvent {
-  user?: StreamCheerMessageEventUser;
-  /** @pattern ^-?(?:0|[1-9]\d*)$ */
-  bits?: number | string;
-}
-
-export interface StreamEventEnvelopeOfBaseUserData {
-  tenantId: string;
-  platform?: Platform;
-  /** @nullable */
-  timestamp?: string | null;
-  data?: BaseUserData;
-}
-
-export interface StreamEventEnvelopeOfEmptyStruct {
-  tenantId: string;
-  platform?: Platform;
-  /** @nullable */
-  timestamp?: string | null;
-  data?: EmptyStruct;
-}
-
-export interface StreamEventEnvelopeOfStreamChatMessageEvent {
-  tenantId: string;
-  platform?: Platform;
-  /** @nullable */
-  timestamp?: string | null;
-  data?: StreamChatMessageEvent;
-}
-
-export interface StreamEventEnvelopeOfStreamCheerMessageEvent {
-  tenantId: string;
-  platform?: Platform;
-  /** @nullable */
-  timestamp?: string | null;
-  data?: StreamCheerMessageEvent;
-}
-
-export interface StreamMetricsEvent {
-  viewers?: string;
-}
-
-export interface StreamEventEnvelopeOfStreamMetricsEvent {
-  tenantId: string;
-  platform?: Platform;
-  /** @nullable */
-  timestamp?: string | null;
-  data?: StreamMetricsEvent;
+export interface StreamEventEnvelope {
+  event: string;
+  data: unknown;
 }
 
 export type StreamSuperChatMessageEventUser = {
@@ -183,14 +125,6 @@ export interface StreamSuperChatMessageEvent {
   amount?: string;
 }
 
-export interface StreamEventEnvelopeOfStreamSuperChatMessageEvent {
-  tenantId: string;
-  platform?: Platform;
-  /** @nullable */
-  timestamp?: string | null;
-  data?: StreamSuperChatMessageEvent;
-}
-
 export interface UserProfile {
   displayName: string;
   avatarUrl: string;
@@ -204,6 +138,23 @@ export interface UserScript {
   source?: string;
   isEnabled?: boolean;
 }
+
+export interface YouTubeStreamInfo {
+  videoId?: string;
+  liveChatId?: string;
+}
+
+export type GetPluginSettingsParams = {
+pluginName: string;
+};
+
+export type GetPluginSettingsSchemaParams = {
+pluginName: string;
+};
+
+export type ListenToGlobalEventBusStreamParams = {
+eventKey?: unknown[];
+};
 
 export type HasAuthConfigParams = {
 platform: Platform;
@@ -433,7 +384,7 @@ const res = await fetch(getDownloadAndInstallPluginUrl(),
 
 
 export type getInstalledPluginsResponse200 = {
-  data: PluginManifest
+  data: PluginManifest[]
   status: 200
 }
 
@@ -468,6 +419,100 @@ export const getInstalledPlugins = async ( options?: RequestInit): Promise<getIn
 
   const data: getInstalledPluginsResponse['data'] = body ? JSON.parse(body) : {}
   return { data, status: res.status, headers: res.headers } as getInstalledPluginsResponse
+}
+
+
+
+export type getPluginSettingsResponse200 = {
+  data: void
+  status: 200
+}
+
+export type getPluginSettingsResponseSuccess = (getPluginSettingsResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getPluginSettingsResponse = (getPluginSettingsResponseSuccess)
+
+export const getGetPluginSettingsUrl = (params: GetPluginSettingsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/plugins/settings?${stringifiedParams}` : `/api/plugins/settings`
+}
+
+export const getPluginSettings = async (params: GetPluginSettingsParams, options?: RequestInit): Promise<getPluginSettingsResponse> => {
+
+  const res = await fetch(getGetPluginSettingsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getPluginSettingsResponse['data'] = body ? JSON.parse(body) : undefined
+  return { data, status: res.status, headers: res.headers } as getPluginSettingsResponse
+}
+
+
+
+export type getPluginSettingsSchemaResponse200 = {
+  data: string
+  status: 200
+}
+
+export type getPluginSettingsSchemaResponseSuccess = (getPluginSettingsSchemaResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getPluginSettingsSchemaResponse = (getPluginSettingsSchemaResponseSuccess)
+
+export const getGetPluginSettingsSchemaUrl = (params: GetPluginSettingsSchemaParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/plugins/settings/schema?${stringifiedParams}` : `/api/plugins/settings/schema`
+}
+
+export const getPluginSettingsSchema = async (params: GetPluginSettingsSchemaParams, options?: RequestInit): Promise<getPluginSettingsSchemaResponse> => {
+
+  const res = await fetch(getGetPluginSettingsSchemaUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getPluginSettingsSchemaResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as getPluginSettingsSchemaResponse
 }
 
 
@@ -538,7 +583,7 @@ export type getMonacoEnvironmentResponseSuccess = (getMonacoEnvironmentResponse2
 
 export type getMonacoEnvironmentResponse = (getMonacoEnvironmentResponseSuccess)
 
-export const getGetMonacoEnvironmentUrl = (topic: EventKey,) => {
+export const getGetMonacoEnvironmentUrl = (topic: string,) => {
 
 
 
@@ -546,7 +591,7 @@ export const getGetMonacoEnvironmentUrl = (topic: EventKey,) => {
   return `/api/scripts/monaco-env/${topic}`
 }
 
-export const getMonacoEnvironment = async (topic: EventKey, options?: RequestInit): Promise<getMonacoEnvironmentResponse> => {
+export const getMonacoEnvironment = async (topic: string, options?: RequestInit): Promise<getMonacoEnvironmentResponse> => {
 
   const res = await fetch(getGetMonacoEnvironmentUrl(topic),
   {
@@ -832,17 +877,30 @@ export type listenToGlobalEventBusStreamResponseSuccess = (listenToGlobalEventBu
 
 export type listenToGlobalEventBusStreamResponse = (listenToGlobalEventBusStreamResponseSuccess)
 
-export const getListenToGlobalEventBusStreamUrl = () => {
+export const getListenToGlobalEventBusStreamUrl = (params?: ListenToGlobalEventBusStreamParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    const explodeParameters = ["eventKey"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : String(v));
+      });
+      return;
+    }
 
 
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/events/listen`
+  return stringifiedParams.length > 0 ? `/api/events/listen?${stringifiedParams}` : `/api/events/listen`
 }
 
-export const listenToGlobalEventBusStream = async ( options?: RequestInit): Promise<listenToGlobalEventBusStreamResponse> => {
+export const listenToGlobalEventBusStream = async (params?: ListenToGlobalEventBusStreamParams, options?: RequestInit): Promise<listenToGlobalEventBusStreamResponse> => {
 
-  const res = await fetch(getListenToGlobalEventBusStreamUrl(),
+  const res = await fetch(getListenToGlobalEventBusStreamUrl(params),
   {
     ...options,
     method: 'GET'
@@ -1138,6 +1196,58 @@ export const getRunningEnvironment = async ( options?: RequestInit): Promise<get
 
   const data: getRunningEnvironmentResponse['data'] = body ? JSON.parse(body) : {}
   return { data, status: res.status, headers: res.headers } as getRunningEnvironmentResponse
+}
+
+
+
+export type getStreamsResponse200 = {
+  data: YouTubeStreamInfo[]
+  status: 200
+}
+
+export type getStreamsResponse404 = {
+  data: void
+  status: 404
+}
+
+export type getStreamsResponse500 = {
+  data: void
+  status: 500
+}
+
+export type getStreamsResponseSuccess = (getStreamsResponse200) & {
+  headers: Headers;
+};
+export type getStreamsResponseError = (getStreamsResponse404 | getStreamsResponse500) & {
+  headers: Headers;
+};
+
+export type getStreamsResponse = (getStreamsResponseSuccess | getStreamsResponseError)
+
+export const getGetStreamsUrl = () => {
+
+
+
+
+  return `/api/stream/streams`
+}
+
+export const getStreams = async ( options?: RequestInit): Promise<getStreamsResponse> => {
+
+  const res = await fetch(getGetStreamsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getStreamsResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as getStreamsResponse
 }
 
 

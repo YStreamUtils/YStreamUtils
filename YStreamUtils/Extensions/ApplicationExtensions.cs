@@ -15,7 +15,9 @@ public static class ApplicationExtensions
         var services = scope.ServiceProvider;
         try
         {
-            var db = services.GetRequiredService<AppDbContext>();
+            var factory = services.GetRequiredService<IDbContextFactory<AppDbContext>>();
+            using var db = factory.CreateDbContext();
+            
             db.Database.Migrate();
             Console.WriteLine("Database migrations applied successfully.");
         }

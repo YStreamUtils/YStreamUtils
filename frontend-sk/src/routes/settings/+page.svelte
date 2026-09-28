@@ -1,6 +1,16 @@
 <script lang="ts">
   import { Platform } from '$lib/api';
   import { getSettingsState } from '$lib/state/settings.svelte';
+  import Card from "$lib/components/base/Card.svelte";
+  import Expander from "$lib/components/base/Expander.svelte";
+  import {Palette, User} from "@lucide/svelte";
+  import SettingsRow from "$lib/components/SettingsRow.svelte";
+  import ConnectedAccount from "$lib/components/ConnectedAccount.svelte";
+  import Button from "$lib/components/base/Button.svelte";
+  import Input from "$lib/components/base/Input.svelte";
+  import ThemeDropdown from "$lib/components/ThemeDropdown.svelte";
+  import ColorPicker from "$lib/components/ColorPicker.svelte";
+  import * as auth from "$lib/state/auth.svelte"
 
   const settingsState = getSettingsState();
 

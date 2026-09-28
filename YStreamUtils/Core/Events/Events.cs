@@ -1,9 +1,19 @@
 ﻿using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
-using YStreamUtils.Core.Entities;
 using YStreamUtils.Core.Models;
 
 namespace YStreamUtils.Core.Events;
+
+public static class Events
+{
+    public static readonly Dictionary<EventKey, Type> KnownTypeRegistry = new()
+    {
+        { EventKey.StreamChatMessage, typeof(StreamEventEnvelope<StreamChatMessageEvent>) },
+        { EventKey.YoutubeSuperChat, typeof(StreamEventEnvelope<StreamSuperChatMessageEvent>) },
+        { EventKey.ManualInvoke, typeof(StreamEventEnvelope<EmptyStruct>) }
+    };
+}
+
 
 [JsonConverter(typeof(JsonStringEnumConverter<StreamEventName>))]
 public enum StreamEventName

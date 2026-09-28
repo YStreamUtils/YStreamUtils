@@ -111,7 +111,63 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PluginManifest"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PluginManifest"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/settings": {
+      "get": {
+        "tags": [
+          "YStreamUtils.Docker"
+        ],
+        "operationId": "GetPluginSettings",
+        "parameters": [
+          {
+            "name": "pluginName",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/plugins/settings/schema": {
+      "get": {
+        "tags": [
+          "YStreamUtils.Docker"
+        ],
+        "operationId": "GetPluginSettingsSchema",
+        "parameters": [
+          {
+            "name": "pluginName",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -501,6 +557,35 @@
         }
       }
     },
+    "/api/stream/streams": {
+      "get": {
+        "tags": [
+          "YStreamUtils.Docker"
+        ],
+        "operationId": "GetStreams",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/YouTubeStreamInfo"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
     "/api/stream/chat/connect": {
       "get": {
         "tags": [
@@ -683,6 +768,9 @@
           }
         }
       },
+      "EmptyStruct": {
+        "type": "object"
+      },
       "EnvironmentPlatformResponse": {
         "required": [
           "platform"
@@ -733,7 +821,6 @@
         "required": [
           "name",
           "version",
-          "entryPoint",
           "permissions",
           "authors",
           "source",
@@ -745,9 +832,6 @@
             "type": "string"
           },
           "version": {
-            "type": "string"
-          },
-          "entryPoint": {
             "type": "string"
           },
           "permissions": {
@@ -837,6 +921,90 @@
           }
         }
       },
+      "StreamChatMessageEvent": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "properties": {
+              "authorId": {
+                "type": "string"
+              },
+              "author": {
+                "type": "string"
+              },
+              "authorColor": {
+                "type": "string"
+              }
+            }
+          },
+          "messageId": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "liveChatId": {
+            "type": "string"
+          }
+        }
+      },
+      "StreamEventEnvelope": {
+        "required": [
+          "event",
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "string"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "$dynamicRef": "StreamChatMessageEvent"
+              },
+              {
+                "$dynamicRef": "StreamSuperChatMessageEvent"
+              },
+              {
+                "$dynamicRef": "EmptyStruct"
+              }
+            ]
+          }
+        }
+      },
+      "StreamSuperChatMessageEvent": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "properties": {
+              "authorId": {
+                "type": "string"
+              },
+              "author": {
+                "type": "string"
+              },
+              "authorColor": {
+                "type": "string"
+              }
+            }
+          },
+          "messageId": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "liveChatId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          }
+        }
+      },
       "UiSettings": {
         "type": "object",
         "properties": {
@@ -888,6 +1056,17 @@
           },
           "isEnabled": {
             "type": "boolean"
+          }
+        }
+      },
+      "YouTubeStreamInfo": {
+        "type": "object",
+        "properties": {
+          "videoId": {
+            "type": "string"
+          },
+          "liveChatId": {
+            "type": "string"
           }
         }
       }

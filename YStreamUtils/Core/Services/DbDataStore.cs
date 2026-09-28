@@ -4,14 +4,14 @@ using Microsoft.EntityFrameworkCore;
 using YStreamUtils.Core.Data;
 using YStreamUtils.Core.Entities;
 using YStreamUtils.Core.Models;
-using YStreamUtils.Endpoints;
 
 namespace YStreamUtils.Core.Services;
 
-public class DbDataStore(AppDbContext dbContext) : IDataStore
+public class DbDataStore(IDbContextFactory<AppDbContext> contextFactory) : IDataStore
 {
     public async Task<T?> GetAsync<T>(string key)
     {
+        await using var dbContext = await contextFactory.CreateDbContextAsync();
         var tokenRecord = await dbContext.OAuthTokens
             .FirstOrDefaultAsync(t => t.Platform == Platform.YouTube && t.IsBotAccount == IsBot(key));
     
@@ -21,6 +21,8 @@ public class DbDataStore(AppDbContext dbContext) : IDataStore
     public async Task StoreAsync<T>(string key, T value)
     {
         if (value == null) return;
+        await using var dbContext = await contextFactory.CreateDbContextAsync();
+
         var tokenRecord = await dbContext.OAuthTokens
             .FirstOrDefaultAsync(t => t.Platform == Platform.YouTube && t.IsBotAccount == IsBot(key));
 
@@ -36,6 +38,8 @@ public class DbDataStore(AppDbContext dbContext) : IDataStore
 
     public async Task DeleteAsync<T>(string key)
     {
+        await using var dbContext = await contextFactory.CreateDbContextAsync();
+
         var tokenRecord = await dbContext.OAuthTokens
             .FirstOrDefaultAsync(t => t.Platform == Platform.YouTube && t.IsBotAccount == IsBot(key));
         
