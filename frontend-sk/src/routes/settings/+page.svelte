@@ -3,7 +3,7 @@
   import { getSettingsState } from '$lib/state/settings.svelte';
   import Card from "$lib/components/base/Card.svelte";
   import Expander from "$lib/components/base/Expander.svelte";
-  import {Palette, User} from "@lucide/svelte";
+  import {ArrowLeftRight, Link2, Palette, Plus, Replace, User} from "@lucide/svelte";
   import SettingsRow from "$lib/components/SettingsRow.svelte";
   import ConnectedAccount from "$lib/components/ConnectedAccount.svelte";
   import Button from "$lib/components/base/Button.svelte";
@@ -39,7 +39,8 @@
 
   let updateCounter = $state(0);
 
-  const platformColorMap = {
+  const platformColorMap: Record<Platform, string> = {
+    [Platform.None]: '#000000',
     [Platform.YouTube]: '#FF0000',
     [Platform.Twitch]: '#9146FF'
   };
@@ -59,7 +60,7 @@
               {@const platformKey = platform as Platform}
               {@const popoverId = `popover-${platform}-oauth`}
 
-              <Card variant="custom" customColor={platformColorMap[platformKey] || ''}>
+              <Card color="custom" customColor={platformColorMap[platformKey] || ''}>
                 <Expander label={platform} icon={User}>
                   <div class="settings-stack">
                     <SettingsRow title={display || 'Null?'}>
@@ -72,14 +73,14 @@
                     </SettingsRow>
                     <SettingsRow title="OAuth2 Config">
                       {#await auth.hasConfig(platformKey)}
-                        <Button variant="surface" disabled>Checking config...</Button>
+                        <Button color="surface" disabled>Checking config...</Button>
                       {:then hasConfig}
                         {#if hasConfig}
-                          <Button variant="error" commandfor={popoverId} command="show-modal">
+                          <Button color="error" commandfor={popoverId} command="show-modal" icon={ArrowLeftRight}>
                             Change Client and Secret
                           </Button>
                         {:else}
-                          <Button variant="success" commandfor={popoverId} command="show-modal">
+                          <Button color="success" commandfor={popoverId} command="show-modal" icon={Plus}>
                             Set Client and Secret
                           </Button>
                         {/if}
@@ -101,8 +102,8 @@
                           </SettingsRow>
 
                           <SettingsRow title="">
-                            <Button variant="error" commandfor={popoverId} command="close">Cancel</Button>
-                            <Button variant="success" commandfor={popoverId} command="close" type="submit">Save</Button>
+                            <Button color="error" commandfor={popoverId} command="request-close" type="button">Cancel</Button>
+                            <Button color="success" commandfor={popoverId} command="close" type="submit">Save</Button>
                           </SettingsRow>
                         </form>
                       </Card>

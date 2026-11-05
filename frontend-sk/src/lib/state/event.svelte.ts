@@ -1,44 +1,53 @@
-import { getContext, onMount, setContext } from 'svelte';
-import { EventKey, type Platform } from '$lib/api';
+import { getContext, onDestroy, setContext } from 'svelte';
+import { EventKey } from '$lib/api';
 import { SvelteMap } from 'svelte/reactivity';
 
 export class GlobalEventStreamWrapper {
-	#rawEvent = $state<StreamEventEnvelope<unknown> | null>(null);
+	#eventSource: EventSource;
 
 	constructor() {
-		onMount(() => {
-			const eventSource = new EventSource('/api/events/listen');
+		this.#eventSource = new EventSource('/api/events/listen');
 
-			eventSource.onmessage = (msg) => {
-				try {
-					const envelope: StreamEventEnvelope<unknown> = JSON.parse(msg.data);
-					this.#rawEvent = envelope;
-				} catch (err) {
-					console.error('Failed to parse incoming EventBus SSE frame payload:', err);
-				}
-			};
+		this.#eventSource.onerror = (err) => {
+			console.error('Global EventBus stream connection lost or socket closed.', err);
+		};
 
-			eventSource.onerror = (err) => {
-				console.error('Global EventBus stream connection lost or socket closed.', err);
-			};
-
-			return () => {
-				console.log('[EventBus Stream] Severing client listener connection line safely.');
-				eventSource.close();
-			};
-		});
+		try {
+			onDestroy(() => {
+				console.log('[EventBus Stream] Severing client connection line safely.');
+				this.#eventSource.close();
+			});
+		} catch {}
 	}
 
-	on<T>(targetKey: EventKey, callback: (envelope: StreamEventEnvelope<T>) => void) {
-		$effect(() => {
-			const current = this.#rawEvent;
-
-			if (!current) return;
-
-			if (current.event === targetKey) {
-				callback(current as StreamEventEnvelope<T>);
+	on<T>(targetKey: EventKey, callback: (envelope: T) => void): () => void {
+		const handler = (msgEvent: Event) => {
+			try {
+				const envelope: T = JSON.parse((msgEvent as MessageEvent).data);
+				callback(envelope);
+			} catch (err) {
+				console.error(`Failed to parse incoming SSE frame for key [${targetKey}]:`, err);
 			}
-		});
+		};
+
+		this.#eventSource.addEventListener(targetKey, handler);
+
+		const unsubscribe = () => {
+			this.#eventSource.removeEventListener(targetKey, handler);
+		};
+
+		try {
+			onDestroy(unsubscribe);
+		} catch {
+
+		}
+
+		return unsubscribe;
+	}
+
+	close() {
+		console.log('[EventBus Stream] Manually closing the streaming connection.');
+		this.#eventSource.close();
 	}
 }
 
@@ -52,9 +61,15 @@ export function getEventStreamState(): GlobalEventStreamWrapper {
 	return getContext(EVENT_STREAM_KEY) as GlobalEventStreamWrapper;
 }
 
-export const EventDisplayNames = new SvelteMap<EventKey, string>([
-	[EventKey["app:manual"], 'Manual Invoke'],
-	[EventKey["stream:chat_message"], 'Stream Chat Message (all)'],
-	[EventKey["stream:youtube:superchat"], 'YouTube SuperChat'],
-	[EventKey["app:log"], 'Application Logs']
-]);
+export const EventDisplayNames: Record<EventKey, string> = {
+	[EventKey["app:manual"]]: 'Manual Invoke',
+	[EventKey["stream:chat_message"]]: 'Chat Message (all)',
+	[EventKey["stream:youtube:superchat"]]: 'YouTube SuperChat',
+	[EventKey["app:log"]]: 'Application Logs',
+	[EventKey["stream:discovered"]]: 'Stream Discovered',
+	[EventKey["stream:removed"]]: 'Stream Removed',
+	[EventKey["stream:metrics"]]: 'Stream Metrics',
+	[EventKey["app:all"]]: 'All',
+}
+
+

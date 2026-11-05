@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { UserProfile, Platform } from '$lib/api';
   import Button from './base/Button.svelte';
+  import {Link2} from "@lucide/svelte";
 
   interface Props {
     platform: Platform;
@@ -29,7 +30,7 @@
     <span class="account-status">Connected</span>
   </div>
 {:else}
-  <Button onclick={handleConnect} disabled={isLoggingIn}>
+  <Button onclick={handleConnect} disabled={isLoggingIn}  icon={Link2}>
     {isLoggingIn ? 'Connecting Browser...' : 'Link Account'}
   </Button>
 {/if}

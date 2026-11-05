@@ -1,20 +1,26 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import type { HTMLAttributes } from 'svelte/elements';
   import type { VariantProps } from '$lib/utils/variant';
 
-  interface Props extends VariantProps<HTMLAttributes<HTMLDivElement>> {
+  interface Props extends VariantProps<'div'> {
     children?: Snippet;
     props?: any;
   }
-  let { variant = 'surface', customColor = '', class: className = '', children, ...props }: Props = $props();
+  let { 
+    color = 'surface', 
+    variant = 'solid',
+    customColor = '', 
+    class: className = '', 
+    children
+    , ...props }: Props = $props();
 </script>
 
 <div
+  data-color={color}
   data-variant={variant}
   class="card {className}"
   {...props}
-  style:--color-custom={variant === 'custom' ? customColor : undefined}>
+  style:--color-custom={customColor ?? undefined}>
   {@render children?.()}
 </div>
 
@@ -27,43 +33,43 @@
     backdrop-filter: blur(20px);
   }
 
-  .card[data-variant='surface'] {
+  .card[data-color='surface'] {
     --_card_bg: light-dark(rgb(245 245 247 / 70%), color-mix(in srgb, var(--neutral-950) 65%, transparent));
     --_card_border: 1px solid light-dark(rgb(0 0 0 / 8%), color-mix(in srgb, var(--neutral-800-tint) 40%, transparent));
     --_card_border_hover_color: light-dark(rgb(0 0 0 / 15%), color-mix(in srgb, var(--color-brand) 40%, transparent));
   }
 
-  .card[data-variant='error'] {
+  .card[data-color='error'] {
     --_card_bg: color-mix(in srgb, var(--color-error) 15%, transparent);
     --_card_border: 1px solid color-mix(in srgb, var(--color-error) 30%, transparent);
     --_card_border_hover_color: var(--color-error);
   }
 
-  .card[data-variant='transparent'] {
+  .card[data-color='transparent'] {
     --_card_bg: transparent;
     --_card_border: transparent;
     --_card_border_hover_color: light-dark(var(--neutral-500-tint), var(--neutral-400-tint));
   }
 
-  .card[data-variant='accent'] {
+  .card[data-color='accent'] {
     --_card_bg: color-mix(in srgb, var(--color-accent) 15%, transparent);
     --_card_border: color-mix(in srgb, var(--color-accent) 30%, transparent);
     --_card_border_hover_color: var(--color-accent);
   }
 
-  .card[data-variant='success'] {
+  .card[data-color='success'] {
     --_card_bg: color-mix(in srgb, var(--color-success) 15%, transparent);
     --_card_border: color-mix(in srgb, var(--color-success) 30%, transparent);
     --_card_border_hover_color: var(--color-success);
   }
 
-  .card[data-variant='warning'] {
+  .card[data-color='warning'] {
     --_card_bg: color-mix(in srgb, var(--color-warning) 15%, transparent);
     --_card_border: color-mix(in srgb, var(--color-warning) 30%, transparent);
     --_card_border_hover_color: var(--color-warning);
   }
 
-  .card[data-variant='custom'] {
+  .card[data-color='custom'] {
     --_card_bg: color-mix(in srgb, var(--color-custom) 15%, transparent);
     --_card_border: color-mix(in srgb, var(--color-custom) 30%, transparent);
     --_card_border_hover_color: var(--color-custom);

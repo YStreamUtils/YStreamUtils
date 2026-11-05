@@ -3,7 +3,7 @@ import { getContext, onMount, setContext } from 'svelte';
 
 export interface Script {
 	source: string;
-	event: EventKeyType;
+	event: EventKey;
 	isEnabled?: boolean;
 }
 
@@ -11,9 +11,6 @@ export class ScriptState {
 	scripts = $state<Record<string, Script>>({
 		default_script: this.defaultScriptState()
 	});
-
-	filteredEvents: EventKey[] = Object.values(EventKey);
-
 	constructor() {
 		onMount(async () => {
 			const loaded = await getAllScripts();

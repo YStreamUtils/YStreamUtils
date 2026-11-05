@@ -7,6 +7,7 @@
 	import {getScriptState, type Script} from '$lib/state/scriptState.svelte';
 	import { Check, Trash } from '@lucide/svelte';
 	import { deleteScriptById, EventKey, invokeScriptTest, saveScript } from '$lib/api';
+	import {EventDisplayNames} from "$lib/state/event.svelte";
 
 	const scriptState = getScriptState();
 
@@ -20,7 +21,7 @@
 	}
 
 	async function saveCurrentScript() {
-		saveScript({
+		await saveScript({
 			scriptId: currentScriptName,
 			topic: currentScript?.event,
 			source: currentScript?.source,
@@ -31,11 +32,13 @@
 	let treeItems = $derived.by<TreeNode[]>(() => {
 		const eventGroups: Record<string, TreeNode[]> = {};
 
-		Object.entries(scriptState.scripts).forEach(([scriptName, state]) => {
+		Object.entries(scriptState.scripts).forEach(([scriptName, state]: [string, Script]) => {
 			const eventKey = state.event || 'Unassigned';
-			if (!eventGroups[eventKey]) eventGroups[eventKey] = [];
-
-			eventGroups[eventKey].push({
+			let eventDisplayName = EventDisplayNames[eventKey];
+			if (!eventGroups[eventDisplayName]) eventGroups[eventDisplayName] = [];
+			
+			
+			eventGroups[eventDisplayName].push({
 				id: scriptName,
 				label: scriptName
 			});
@@ -74,7 +77,7 @@
 			</div>
 
 			<div class="sidebar-actions">
-				<Button fullWidth={true} variant="success" onclick={createScript}>Add Script</Button>
+				<Button fullWidth={true} color="success" onclick={createScript}>Add Script</Button>
 			</div>
 		</div>
 	</Card>
@@ -87,7 +90,9 @@
 					<Select
 						id="event-select"
 						bind:value={currentScript.event}
-						entries={scriptState.filteredEvents.map((key) => ({ display: key, value: key }))}
+						entries={Object.entries(EventDisplayNames).map(([key, display]) => ({ display: display, value: key }))}
+						style="min-width: 10rem;"
+						align="left"
 					/>
 
 					<Button variant="error" icon={Trash} onclick={handleDelete}>Delete</Button>
@@ -147,7 +152,6 @@
 		border-top: 1px solid light-dark(var(--neutral-200), var(--neutral-800));
 	}
 
-	/* Extracted Layout Classes */
 	.editor-layout {
 		display: grid;
 		grid-template-rows: [header] auto [content] 1fr;

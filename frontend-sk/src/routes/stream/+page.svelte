@@ -1,27 +1,11 @@
 <script lang="ts">
-    import {EventKey} from '$lib/api';
     import Button from '$lib/components/base/Button.svelte';
     import Card from '$lib/components/base/Card.svelte';
-    import {getEventStreamState} from '$lib/state/event.svelte';
     import {getStreamState} from '$lib/state/streamState.svelte';
-    import {onMount, tick} from 'svelte';
 
     let scrollContainer: HTMLDivElement;
 
-    let events = getEventStreamState();
     let streamState = getStreamState();
-
-    onMount(() => {
-        events.on(EventKey["stream:chat_message"], async () => {
-            await tick();
-            if (scrollContainer) {
-                scrollContainer.scrollTo({
-                    top: scrollContainer.scrollHeight,
-                    behavior: 'smooth'
-                });
-            }
-        });
-    });
 </script>
 
 <div class="stream-grid">
@@ -32,10 +16,10 @@
             <div class="chat-viewport" bind:this={scrollContainer}>
                 {#each streamState.messages as msg, index (index)}
                     <div class="chat-row">
-						<span class="chat-author" style="color: {msg.user?.authorColor};">
-							{msg.user?.author}:
+						<span class="chat-author" style="color: {msg.data.user?.authorColor};">
+							{msg.data.user?.author}:
 						</span>
-						<span class="chat-text">{msg.message}</span>
+						<span class="chat-text">{msg.data.message}</span>
                     </div>
                 {/each}
             </div>
@@ -67,7 +51,6 @@
             title="Youtube Stream - {videoId}"
             src="https://youtube.com/embed/{videoId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0"
             width="100%"
-            frameborder="0"
             allow="autoplay; encrypted-media; picture-in-picture"
             referrerpolicy="strict-origin-when-cross-origin"
             allowfullscreen
@@ -138,6 +121,7 @@
     .player-frame {
         aspect-ratio: calc(16 / 9);
         margin-top: var(--space-2);
+        border: none;
     }
 
     .player-footer {

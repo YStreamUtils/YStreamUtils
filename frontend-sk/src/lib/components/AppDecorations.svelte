@@ -5,15 +5,24 @@
 	const { onMenuClicked } = $props<{ onMenuClicked: () => void }>();
 
 	let environment = $state<ApplicationPlatform>(ApplicationPlatform.Windows);
-	
-	function onTitleBarMouseDown() {
-		if (window.external){
-			window.external.sendMessage("cmd:begin-drag")
-		}
+
+	function sendWindowAction(actionName: string): void {
+		(window.external as any).sendMessage(actionName)
 	}
+
+	function handleMouseDown(e: MouseEvent) {
+		const target = e.target as HTMLElement;
+		if (target.closest('button') || target.closest('input') || target.closest('a')) {
+			return;
+		}
+
+		sendWindowAction(JSON.stringify("cmd:drag" ));
+	}
+	
 </script>
 
-<div class="modern-titlebar" onmousedown={onTitleBarMouseDown}>
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<div class="modern-titlebar" onmousedown={handleMouseDown} role="application" aria-label="Window drag region">
 	<button
 		class="btn btn-center sidebar-button"
 		onclick={() => {
@@ -29,19 +38,19 @@
 		<div class="controls">
 			<button
 				class="btn btn-center btn-system btn-minimize"
-				onclick={() => window.external.sendMessage('cmd:minimize')}
+				onclick={() => sendWindowAction('cmd:minimize')}
 			>
 				<Minus size={16} />
 			</button>
 			<button
 				class="btn btn-center btn-system btn-maximize"
-				onclick={() => window.external.sendMessage('cmd:maximize')}
+				onclick={() => sendWindowAction('cmd:maximize')}
 			>
 				<Square size={16} />
 			</button>
 			<button
 				class="btn btn-center btn-system btn-close"
-				onclick={() => window.external.sendMessage('cmd:close')}
+				onclick={() => sendWindowAction('cmd:close')}
 			>
 				<X size={16} />
 			</button>

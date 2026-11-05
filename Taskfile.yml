@@ -4,121 +4,70 @@ vars:
   TIMESTAMP:
     sh: powershell -NoProfile -Command "Get-Date -Format 'yyyyMMddHHmmss'"
   
-  CORE_PROJECT: "YStreamUtils/YStreamUtils.csproj"
-  DESKTOP_PROJECT: "YStreamUtils.Desktop/YStreamUtils.Desktop.csproj"
-  DOCKER_PROJECT: "YStreamUtils.Docker/YStreamUtils.Docker.csproj"
+  CORE_PROJECT: "YStreamUtils.Core/YStreamUtils.Core.csproj"
+  WEB_PROJECT: "YStreamUtils.Web/YStreamUtils.Web.csproj"
 
 tasks:
-  migrate:add:sqlite:
-    desc: "Generate a new SQLite migration for the Desktop project."
+  migrate:add:
+    desc: "Generate a new local SQLite migration (based off the Web project context scaffolding). Usage -> task migrate:add name=MigrationName"
     vars:
       RESOLVED_NAME: '{{default (default (printf "AutoMigration_%s" .TIMESTAMP) .CLI_ARGS) .name}}'
     env:
       EF_PROVIDER: "sqlite"
     cmds:
       - echo "Generating SQLite migration '{{.RESOLVED_NAME}}_sqlite'..."
-      - dotnet ef migrations add {{.RESOLVED_NAME}}_sqlite --project YStreamUtils/YStreamUtils.csproj --startup-project YStreamUtils.Desktop/YStreamUtils.Desktop.csproj --context SqliteDbContext --output-dir Core/Data/Migrations/Sqlite
-
-  migrate:add:postgres:
-    desc: "Generate a new PostgreSQL migration for the Docker web project."
-    vars:
-      RESOLVED_NAME: '{{default (default (printf "AutoMigration_%s" .TIMESTAMP) .CLI_ARGS) .name}}'
-    env:
-      EF_PROVIDER: "postgres"
-    cmds:
-      - echo "Generating Postgres migration '{{.RESOLVED_NAME}}_postgres'..."
-      - dotnet ef migrations add {{.RESOLVED_NAME}}_postgres --project YStreamUtils/YStreamUtils.csproj --startup-project YStreamUtils.Docker/YStreamUtils.Docker.csproj --context PostgresDbContext --output-dir Core/Data/Migrations/Postgres
-
-  migrate:add:all:
-    desc: "Generate matching migrations for BOTH database providers simultaneously. Usage -> task migrate:add:all name=MigrationName"
-    vars:
-      RESOLVED_NAME: '{{default (default (printf "AutoMigration_%s" .TIMESTAMP) .CLI_ARGS) .name}}'
-    cmds:
-      - task: migrate:add:sqlite
-        vars: { name: "{{.RESOLVED_NAME}}" }
-      - task: migrate:add:postgres
-        vars: { name: "{{.RESOLVED_NAME}}" }
-
-  build:docker:
-    desc: "Compiles the Docker-targeted entrypoint wrapper"
-    cmds:
-      - dotnet build YStreamUtils.Docker/YStreamUtils.Docker.csproj
-
-  build:desktop:
-    desc: "Compiles the PhotinoX Desktop entrypoint executable"
-    cmds:
-      - dotnet build YStreamUtils.Desktop/YStreamUtils.Desktop.csproj
-
-  dev:postgres:
-    desc: "Starts the dev postgres instance in the background"
-    cmds:
-      - docker compose -f dev-compose.yml up -d
+      - dotnet ef migrations add {{.RESOLVED_NAME}}_sqlite --project {{.CORE_PROJECT}} --startup-project {{.WEB_PROJECT}} --context SqliteDbContext --output-dir Core/Data/Migrations/Sqlite
 
   codegen:frontend:
-    desc: "Generates type-safe Svelte TypeScript API clients automatically"
-    deps:
-      - dev:postgres
-    cmds:
-      - dotnet build YStreamUtils.Docker/YStreamUtils.Docker.csproj -c Debug
-      - cd frontend-sk && npm run codegen
-
-  dev:docker:
-    desc: "Runs code generation and boots both Docker backend and Frontend concurrently"
-    deps:
-      - codegen:frontend
-    cmds:
-      - echo "Launching backend watch server and Vite UI proxy..."
-      - task: watch:all:docker
-
-  dev:desktop:
-    desc: "Runs code generation and boots both PhotinoX desktop backend and Frontend concurrently"
-    deps:
-      - codegen:frontend
-    cmds:
-      - echo "Launching desktop watch wrapper and Vite UI proxy..."
-      - task: watch:all:desktop
-
-  watch:all:docker:
-    internal: true
-    deps:
-      - task: start:backend:docker
-      - task: start:frontend
-
-  watch:all:desktop:
-    internal: true
-    deps:
-      - task: start:backend:desktop
-      - task: start:frontend:desktop
-
-  start:backend:docker:
-    internal: true
+    desc: "Generates type-safe Svelte TypeScript API clients automatically based on the Web project schema"
     env:
-      DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER: "true"
+      ASPNETCORE_ENVIRONMENT: "Development"
+    deps: [build:backend]
+    dir: "frontend-sk"
     cmds:
-      - dotnet watch run --project YStreamUtils.Docker/YStreamUtils.Docker.csproj -- --dev
+      - npm run codegen
 
-  start:backend:desktop:
-    internal: true
+  dev:
+    desc: "Dev dev dev dev"
     env:
-      DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER: "true"
-    cmds:
-      - dotnet watch run --project YStreamUtils.Desktop/YStreamUtils.Desktop.csproj -- --dev
-
-  start:frontend:
-    internal: true
-    cmds:
-      - cd frontend-sk && npm run dev
-
-  start:frontend:desktop:
-    internal: true
+      ASPNETCORE_ENVIRONMENT: "Development"
+    deps: [codegen:frontend, dev:backend, dev:frontend]
+      
+  dev:backend:
+    desc: "Starts just the backend with watch"
     env:
-      VITE_BROWSER: "none"
+      ASPNETCORE_ENVIRONMENT: "Development"
+    dir: "YStreamUtils.Web"
     cmds:
-      - cd frontend-sk && npm run dev
+      - echo "Starting .NET Watch"
+      - dotnet watch run -- --port 5000
+  
+  dev:frontend:
+    desc: "Starts just the frontend with watch"
+    dir: "frontend-sk"
+    cmds:
+      - echo "Starting Vite Dev Server"
+      - npm run dev
+  
+  
+  build:frontend:
+    desc: ""
+    dir: "frontend-sk"
+    cmds:
+      - npm run build
 
+  build:backend:
+    desc: ""
+    dir: "YStreamUtils.Web"
+    cmds:
+      - dotnet build -c Debug
+  
   build:prod:
-    desc: "Compiles optimized production UI and builds final native .NET desktop binaries"
+    desc: "Compiles optimized production static UI bundles and publishes clean release binaries"
+    env:
+      ASPNETCORE_ENVIRONMENT: "Production"
     cmds:
-      - cd frontend-sk && npm run build
-      - dotnet publish YStreamUtils.Desktop/YStreamUtils.Desktop.csproj -c Release -o ./dist/desktop
-      - dotnet publish YStreamUtils.Docker/YStreamUtils.Docker.csproj -c Release -o ./dist/docker
+      - for:
+          matrix:
+            OS: [ win-x64, linux-x64, linux-arm64, osx-arm64 ]
+        cmd: dotnet publish {{.WEB_PROJECT}} -c Release -r {{.ITEM.OS}} -o ./dist/web/YStreamutils-{{.ITEM.OS}} /p:PublishSingleFile=true /p:SelfContained=true

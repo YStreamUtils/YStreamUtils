@@ -25,7 +25,7 @@
 	{@const resolvedPath = resolve(path)}
 
 	<Button
-		variant="transparent"
+		color="transparent"
 		align="left"
 		{icon}
 		fullWidth={true}

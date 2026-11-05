@@ -9,6 +9,8 @@
     import {loadAllProfiles} from '$lib/state/auth.svelte';
     import {setSettingsState} from '$lib/state/settings.svelte';
     import {setScriptState} from "$lib/state/scriptState.svelte";
+    import {setStreamState} from "$lib/state/streamState.svelte";
+    import {setEventStreamState} from "$lib/state/event.svelte";
 	
     $effect(() => {
         sessionStorage.setItem('sidebarOpen', JSON.stringify(sidebar.isOpen));
@@ -20,9 +22,11 @@
 
     let settings = setSettingsState();
     setScriptState();
+    setEventStreamState();
+    setStreamState();
 
     $effect(() => {
-        if (settings.settings?.ui?.color) {
+        if (settings.settings.ui?.color) {
             const {color, theme} = settings.settings.ui;
             document.documentElement.style.setProperty('--color-brand', color);
             document.documentElement.setAttribute('data-theme', theme || 'dark');

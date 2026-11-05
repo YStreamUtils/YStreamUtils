@@ -15,6 +15,7 @@
 		"codegen": "orval"
 	},
 	"devDependencies": {
+		"@csstools/postcss-custom-functions": "^1.0.1",
 		"@eslint/js": "^10.0.1",
 		"@sveltejs/adapter-static": "^3.0.10",
 		"@sveltejs/kit": "^2.63.0",
@@ -25,14 +26,24 @@
 		"eslint-plugin-svelte": "^3.19.0",
 		"globals": "^17.6.0",
 		"orval": "^8.33.0",
+		"postcss": "^8.5.29",
+		"postcss-preset-env": "^11.6.1",
 		"prettier": "^3.8.3",
 		"prettier-plugin-svelte": "^4.1.0",
+		"stylelint": "^17.15.0",
+		"stylelint-config-html": "^2.0.0",
+		"stylelint-config-recess-order": "^7.8.0",
+		"stylelint-config-standard": "^40.0.0",
+		"stylelint-declaration-block-no-ignored-properties": "^3.0.0",
+		"stylelint-order": "^8.1.1",
+		"stylelint-plugin-defensive-css": "^2.9.7",
 		"svelte": "^5.56.1",
 		"svelte-check": "^4.6.0",
 		"typescript": "^6.0.3",
 		"typescript-eslint": "^8.60.1",
 		"vite": "^8.0.16",
-		"vite-plugin-monaco-editor": "^1.1.0"
+		"vite-plugin-monaco-editor": "^1.1.0",
+		"vite-plugin-pwa": "^2.0.0"
 	},
 	"dependencies": {
 		"@codemirror/lang-javascript": "^6.2.5",
@@ -46,13 +57,6 @@
 		"codemirror": "^6.0.2",
 		"marked": "^18.0.13",
 		"modern-monaco": "^0.4.2",
-		"monaco-editor-core": "^0.57.0",
-		"stylelint": "^17.15.0",
-		"stylelint-config-html": "^2.0.0",
-		"stylelint-config-recess-order": "^7.8.0",
-		"stylelint-config-standard": "^40.0.0",
-		"stylelint-declaration-block-no-ignored-properties": "^3.0.0",
-		"stylelint-order": "^8.1.1",
-		"stylelint-plugin-defensive-css": "^2.9.7"
+		"monaco-editor-core": "^0.57.0"
 	}
 }

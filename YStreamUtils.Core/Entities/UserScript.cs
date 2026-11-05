@@ -1,0 +1,13 @@
+﻿using System.ComponentModel.DataAnnotations;
+using YStreamUtils.Core.Events;
+
+namespace YStreamUtils.Core.Entities;
+
+public class UserScript
+{
+    [Key]
+    public string ScriptId { get; set; } = string.Empty;
+    public EventKey Topic { get; set; }
+    public string Source { get; set; } = string.Empty;
+    public bool IsEnabled { get; set; }
+}

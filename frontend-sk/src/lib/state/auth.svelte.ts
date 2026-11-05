@@ -2,10 +2,8 @@ import {
   type Platform as PlatformType,
   type UserProfile,
   Platform,
-  youtubeLoginUrl,
-  getProfile,
-  saveAuthConfig,
-  hasAuthConfig
+  connectPlatform,
+  getProfile, saveAuthConfig, hasAuthConfig,
 } from '$lib/api';
 
 export const profiles = $state<Partial<Record<PlatformType, UserProfile | null>>>({});
@@ -17,7 +15,6 @@ export async function fetchProfile(platform: Platform) {
   isLoadingProfile[platform] = true;
   try {
     let profile = await getProfile({
-      tenantId: 'user',
       platform: platform,
       isBot: false
     });
@@ -34,14 +31,13 @@ export async function fetchProfile(platform: Platform) {
 export async function handleConnect(platform: Platform) {
   isLoggingIn[platform] = true;
   try {
-    const url = await youtubeLoginUrl({
-      tenantId: 'user',
-      role: 'user'
+     const response = await connectPlatform({
+      bot: false,
+      platform,
     });
-    if (url.status === 200) {
-      window.open(url.data.url, '_blank');
+    if (response.status === 200) {
+      await fetchProfile(platform);
     }
-    console.log('Login URL:', url);
   } catch (err) {
     console.error('Authentication failed:', err);
   } finally {
@@ -52,7 +48,6 @@ export async function handleConnect(platform: Platform) {
 export async function saveConfig(platform: Platform, clientId: string, clientSecret: string) {
   try {
     await saveAuthConfig({
-      tenantId: 'user',
       platform: platform,
       clientId: clientId,
       clientSecret: clientSecret
@@ -63,9 +58,9 @@ export async function saveConfig(platform: Platform, clientId: string, clientSec
 }
 
 export async function loadAllProfiles() {
-  Object.entries(platforms).forEach(async ([platform, _]) => {
+  for (const [platform, _] of Object.entries(platforms)) {
     if (await hasConfig(platform as Platform)) await fetchProfile(platform as Platform);
-  });
+  }
 }
 
 export async function hasConfig(platform: Platform): Promise<boolean> {

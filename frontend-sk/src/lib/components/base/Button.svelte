@@ -1,9 +1,8 @@
 <script lang="ts">
-  import type { VariantProps } from '$lib/utils/variant';
+  import type {ButtonProps} from '$lib/utils/variant';
   import type { Snippet, Component } from 'svelte';
-  import type { HTMLButtonAttributes } from 'svelte/elements';
 
-  interface Props extends VariantProps<HTMLButtonAttributes> {
+  interface Props extends ButtonProps {
     icon?: Component<any> | null;
     iconSize?: number;
     children?: Snippet;
@@ -11,7 +10,7 @@
   }
 
   let {
-    variant = 'surface',
+    color = 'surface',
     customColor = '',
     align = 'center',
     fullWidth = false,
@@ -26,12 +25,12 @@
 
 <button
   class="btn {className}"
-  data-variant={variant}
+  data-color={color}
   data-align={align}
   data-fullwidth={fullWidth || undefined}
   aria-pressed={active ? 'true' : 'false'}
   {...restProps}
-  style:--color-custom={variant === 'custom' ? customColor : undefined}>
+  style:--color-custom={color === 'custom' ? customColor : undefined}>
   {#if Icon}
     <span class="icon-wrapper">
       <Icon size={iconSize} />
@@ -71,6 +70,7 @@
     display: flex;
     flex-wrap: wrap;
     overflow: hidden;
+    width: 100%;
   }
 
   .icon-wrapper {
@@ -100,43 +100,43 @@
     margin-left: var(--space-2);
   }
 
-  .btn[data-variant='surface'] {
+  .btn[data-color='surface'] {
     --_btn-bg: color-mix(in srgb, light-dark(var(--neutral-100), var(--neutral-800-tint)) 30%, transparent);
     --_btn-border: color-mix(in srgb, light-dark(var(--neutral-200), var(--neutral-700-tint)) 45%, transparent);
     --_icon-color: light-dark(var(--neutral-500), var(--neutral-400-tint));
   }
 
-  .btn[data-variant='transparent'] {
+  .btn[data-color='transparent'] {
     --_btn-bg: transparent;
     --_btn-border: transparent;
     --_icon-color: light-dark(var(--neutral-500-tint), var(--neutral-400-tint));
   }
 
-  .btn[data-variant='accent'] {
+  .btn[data-color='accent'] {
     --_btn-bg: color-mix(in srgb, var(--color-brand) 15%, transparent);
     --_btn-border: color-mix(in srgb, var(--color-brand) 30%, transparent);
     --_btn-color: var(--color-brand);
   }
 
-  .btn[data-variant='success'] {
+  .btn[data-color='success'] {
     --_btn-bg: color-mix(in srgb, var(--color-success) 15%, transparent);
     --_btn-border: color-mix(in srgb, var(--color-success) 30%, transparent);
     --_btn-color: var(--color-success);
   }
 
-  .btn[data-variant='warning'] {
+  .btn[data-color='warning'] {
     --_btn-bg: color-mix(in srgb, var(--color-warning) 15%, transparent);
     --_btn-border: color-mix(in srgb, var(--color-warning) 30%, transparent);
     --_btn-color: var(--color-warning);
   }
 
-  .btn[data-variant='error'] {
+  .btn[data-color='error'] {
     --_btn-bg: color-mix(in srgb, var(--color-error) 15%, transparent);
     --_btn-border: color-mix(in srgb, var(--color-error) 30%, transparent);
     --_btn-color: var(--color-error);
   }
 
-  .btn[data-variant='custom'] {
+  .btn[data-color='custom'] {
     --_btn-bg: color-mix(in srgb, var(--color-custom) 15%, transparent);
     --_btn-border: color-mix(in srgb, var(--color-custom) 30%, transparent);
     --_btn-color: var(--color-custom);
@@ -148,33 +148,33 @@
     --_btn-color: var(--_active-color, white);
   }
 
-  .btn[data-variant='surface'][aria-pressed='true'] {
+  .btn[data-color='surface'][aria-pressed='true'] {
     --_active-bg: light-dark(rgb(255 255 255 / 40%), color-mix(in srgb, var(--neutral-950) 40%, transparent));
     --_active-border: var(--color-brand);
     --_active-color: var(--color-text);
     --_icon-color: var(--color-brand);
   }
 
-  .btn[data-variant='transparent'][aria-pressed='true'] {
+  .btn[data-color='transparent'][aria-pressed='true'] {
     --_active-bg: light-dark(var(--neutral-100), var(--neutral-800-tint));
     --_active-border: light-dark(var(--neutral-200-tint), var(--neutral-700-tint));
     --_active-color: var(--color-text);
     --_icon-color: var(--color-brand);
   }
 
-  .btn[data-variant='accent'][aria-pressed='true'] {
+  .btn[data-color='accent'][aria-pressed='true'] {
     --_active-bg: var(--color-brand);
   }
 
-  .btn[data-variant='success'][aria-pressed='true'] {
+  .btn[data-color='success'][aria-pressed='true'] {
     --_active-bg: var(--color-success);
   }
 
-  .btn[data-variant='warning'][aria-pressed='true'] {
+  .btn[data-color='warning'][aria-pressed='true'] {
     --_active-bg: var(--color-warning);
   }
 
-  .btn[data-variant='error'][aria-pressed='true'] {
+  .btn[data-color='error'][aria-pressed='true'] {
     --_active-bg: var(--color-error);
   }
 
@@ -182,9 +182,17 @@
     --_btn-bg: var(--_click-bg);
   }
 
-  .btn[data-variant='surface']:active,
-  .btn[data-variant='transparent']:active {
+  .btn[data-color='surface']:active,
+  .btn[data-color='transparent']:active {
     --_click-bg: light-dark(var(--neutral-300-tint), var(--neutral-700-tint));
+  }
+  
+  .btn[data-variant='outline'] {
+    --_btn-bg: transparent;
+  }
+  
+  .btn[data-variant='glass']{
+    backdrop-filter: blur(10px);
   }
 
   @media (hover: hover) {
@@ -192,25 +200,25 @@
       --_btn-bg: var(--_hover-bg);
     }
 
-    .btn[data-variant='surface']:hover,
-    .btn[data-variant='transparent']:hover {
+    .btn[data-color='surface']:hover,
+    .btn[data-color='transparent']:hover {
       --_hover-bg: light-dark(var(--neutral-200-tint), var(--neutral-700-tint));
       --_icon-color: var(--color-brand);
     }
 
-    .btn[data-variant='accent']:hover {
+    .btn[data-color='accent']:hover {
       --_hover-bg: color-mix(in srgb, var(--color-brand) 25%, transparent);
     }
 
-    .btn[data-variant='success']:hover {
+    .btn[data-color='success']:hover {
       --_hover-bg: color-mix(in srgb, var(--color-success) 25%, transparent);
     }
 
-    .btn[data-variant='warning']:hover {
+    .btn[data-color='warning']:hover {
       --_hover-bg: color-mix(in srgb, var(--color-warning) 25%, transparent);
     }
 
-    .btn[data-variant='error']:hover {
+    .btn[data-color='error']:hover {
       --_hover-bg: color-mix(in srgb, var(--color-error) 25%, transparent);
     }
 
@@ -218,7 +226,7 @@
       --_btn-bg: var(--_active-hover-bg);
     }
 
-    .btn:where([data-variant='surface'], [data-variant='transparent']):where([aria-pressed='true']):hover {
+    .btn:where([data-color='surface'], [data-color='transparent']):where([aria-pressed='true']):hover {
       --_active-hover-bg: light-dark(
         color-mix(in srgb, var(--neutral-200-tint) 55%, transparent),
         color-mix(in srgb, var(--neutral-950-tint) 55%, transparent)
