@@ -1,16 +1,21 @@
 using Microsoft.Extensions.FileProviders;
+using YStreamUtils.Web.Components;
 using YStreamUtils.Web.Extensions;
 
 var builder = WebApplication.CreateBuilder();
 
 builder.AddYStreamUtils();
-builder.Services.AddOpenApi();
+
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
 
 var app = builder.Build();
 
 app.RunDatabaseMigrations();
 app.UseDefaultEndpoints();
-app.MapOpenApi();
+app.UseAntiforgery();
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseStaticFiles();

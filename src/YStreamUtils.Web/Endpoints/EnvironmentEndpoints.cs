@@ -13,9 +13,7 @@ public static class EnvironmentEndpoints
             var platformInfo = new EnvironmentPlatformResponse(ApplicationEnvironment.CurrentPlatform);
 
             return Results.Ok(platformInfo);
-        })
-        .Produces<EnvironmentPlatformResponse>()
-        .WithName("GetRunningEnvironment");
+        });
         
         return builder;
     }

@@ -19,8 +19,7 @@ public static class EventBusEndpoints
                 await eventBus.PublishAsync(EventKey.ManualInvoke, envelope);
 
                 return Results.Ok(new { Status = "Manual trigger successfully dispatched." });
-            })
-            .WithName("InvokeManualEvent");
+            });
 
         groupBuilder.MapGet("/events/listen", async (
                 [FromQuery] EventKey[]? eventKey,
@@ -73,9 +72,7 @@ public static class EventBusEndpoints
                     channel.Writer.Complete();
                     foreach (var unsubAction in unsub) unsubAction();
                 }
-            })
-            .WithName("ListenToGlobalEventBusStream")
-            .Produces(StatusCodes.Status200OK, contentType: "text/event-stream");
+            });
 
 
         return groupBuilder;

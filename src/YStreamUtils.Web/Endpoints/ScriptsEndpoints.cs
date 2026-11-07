@@ -23,18 +23,14 @@ public static class ScriptsEndpoints
             {
                 var environment = scriptsService.GetMonacoEnvironment(topic);
                 return Results.Ok(new ScriptMetadataResponse(environment));
-            })
-            .Produces<ScriptMetadataResponse>()
-            .WithName("GetMonacoEnvironment");
+            });
 
         groupBuilder.MapGet("/scripts/{scriptId}", async (string scriptId, [FromServices] IDbContextFactory<AppDbContext> contextFactory) =>
             {
                 await using var dbContext = await contextFactory.CreateDbContextAsync();
                 var script = await dbContext.UserScripts.AsNoTracking().FirstOrDefaultAsync(s => s.ScriptId == scriptId);
                 return script != null ? Results.Ok(script) : Results.NotFound();
-            })
-            .Produces<UserScript>()
-            .WithName("GetScriptById");
+            });
         
         groupBuilder.MapDelete("/scripts/{scriptId}", async (string scriptId, [FromServices] IDbContextFactory<AppDbContext> contextFactory) =>
         {
@@ -44,17 +40,14 @@ public static class ScriptsEndpoints
                 .ExecuteDeleteAsync();
 
             return rowsAffected == 0 ? Results.NotFound() : Results.NoContent();
-        })
-        .WithName("DeleteScriptById");
+        });
 
         groupBuilder.MapGet("/scripts", async ([FromServices] IDbContextFactory<AppDbContext> contextFactory) =>
             {
                 await using var dbContext = await contextFactory.CreateDbContextAsync();
                 var scripts = await dbContext.UserScripts.AsNoTracking().ToListAsync();
                 return Results.Ok(scripts);
-            })
-            .Produces<List<UserScript>>()
-            .WithName("GetAllScripts");
+            });
 
         groupBuilder.MapPost("/scripts/save", async (UserScript incoming, [FromServices] IDbContextFactory<AppDbContext> contextFactory, [FromServices] ScriptsService scriptsService) =>
             {
@@ -79,15 +72,13 @@ public static class ScriptsEndpoints
                 }
 
                 return Results.Ok();
-            })
-            .WithName("SaveScript");
+            });
         
         groupBuilder.MapGet("/script/test/invoke", async ([FromServices] IEventBus bus) =>
         {
             await bus.PublishAsync(EventKey.ManualInvoke, null);
             return Results.Ok();
-        })
-        .WithName("InvokeScriptTest");
+        });
 
         return groupBuilder;
     }

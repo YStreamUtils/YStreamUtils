@@ -48,48 +48,43 @@ public static class AuthEndpoints
 
                 await dbContext.SaveChangesAsync();
                 return Results.Ok($"{Enum.GetName(input.Platform)} OAuth configuration saved successfully.");
-            })
-            .Produces<string>()
-            .WithName("SaveAuthConfig");
+            });
 
         builder.MapGet("/auth/config", async ([FromQuery] Platform platform, [FromServices] IDbContextFactory<AppDbContext> db, HttpContext context) =>
             {
                 var dbContext = await db.CreateDbContextAsync(context.RequestAborted);
                 return await dbContext.OAuthConfigs.AsNoTracking().Where(x => x.Platform == platform).AnyAsync();
-            })
-            .Produces<bool>()
-            .WithName("HasAuthConfig");
-        
+            });
+
         builder.MapGet("/auth/connect", async (
-                [FromQuery] Platform platform,
-                [FromQuery] bool bot,
-                [FromServices] IDbContextFactory<AppDbContext> db,
-                [FromServices] IServiceProvider serviceProvider,
-                HttpContext context) =>
+            [FromQuery] Platform platform,
+            [FromQuery] bool bot,
+            [FromServices] IDbContextFactory<AppDbContext> db,
+            [FromServices] IServiceProvider serviceProvider,
+            HttpContext context) =>
+        {
+            await using var dbContext = await db.CreateDbContextAsync(context.RequestAborted);
+            var settings = await dbContext.OAuthConfigs.FirstOrDefaultAsync(x => x.Platform == platform);
+
+            if (settings == null || string.IsNullOrEmpty(settings.ClientId))
             {
-                await using var dbContext = await db.CreateDbContextAsync(context.RequestAborted);
-                var settings = await dbContext.OAuthConfigs.FirstOrDefaultAsync(x => x.Platform == platform);
-    
-                if (settings == null || string.IsNullOrEmpty(settings.ClientId))
-                {
-                    return Results.BadRequest($"Please configure {platform} client credentials first.");
-                }
+                return Results.BadRequest($"Please configure {platform} client credentials first.");
+            }
 
-                var authService = serviceProvider.GetRequiredKeyedService<IAuthService>(platform);
+            var authService = serviceProvider.GetRequiredKeyedService<IAuthService>(platform);
 
-                try
-                {
-                    await authService.AuthenticateAsync(settings, bot, context.RequestAborted);
-                }
-                catch (Exception e)
-                {
-                    return Results.BadRequest(e.Message);
-                }
-                
+            try
+            {
+                await authService.AuthenticateAsync(settings, bot, context.RequestAborted);
+            }
+            catch (Exception e)
+            {
+                return Results.BadRequest(e.Message);
+            }
 
-                return Results.Ok();
-            })
-            .WithName("ConnectPlatform");
+
+            return Results.Ok();
+        });
 
         builder.MapGet("/auth/profile",
                 async ([FromServices] IServiceProvider serviceProvider, [FromQuery] Platform platform,
@@ -101,9 +96,7 @@ public static class AuthEndpoints
                     return profile is not null
                         ? Results.Json(profile)
                         : Results.NotFound();
-                })
-            .Produces<UserProfile>()
-            .WithName("GetProfile");
+                });
         return builder;
     }
 }

@@ -4,8 +4,8 @@ vars:
   TIMESTAMP:
     sh: powershell -NoProfile -Command "Get-Date -Format 'yyyyMMddHHmmss'"
   
-  CORE_PROJECT: "YStreamUtils.Core/YStreamUtils.Core.csproj"
-  WEB_PROJECT: "YStreamUtils.Web/YStreamUtils.Web.csproj"
+  CORE_PROJECT: "src/YStreamUtils.Core/YStreamUtils.Core.csproj"
+  WEB_PROJECT: "src/YStreamUtils.Web/YStreamUtils.Web.csproj"
 
 tasks:
   migrate:add:
