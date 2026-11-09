@@ -16,7 +16,23 @@
 <body>
 <Routes/>
 <ReconnectModal/>
+<script src="@Assets["_content/BlazorMonaco/jsInterop.js"]"></script>
+<script src="@Assets["_content/BlazorMonaco/lib/monaco-editor/min/vs/loader.js"]"></script>
+<script src="@Assets["_content/BlazorMonaco/lib/monaco-editor/min/vs/editor/editor.main.js"]"></script>
 <script src="@Assets["_framework/blazor.web.js"]"></script>
+<script>
+    window.scrollToBottom = (element) => {
+        if (element) {
+            element.scrollTop = element.scrollHeight;
+        }
+    };
+
+    window.isScrolledToBottom = (element, threshold = 15) => {
+        if (!element) return true;
+        if (element.scrollHeight <= element.clientHeight) return true;
+        return (element.scrollHeight - element.scrollTop - element.clientHeight) <= threshold;
+    };
+</script>
 </body>
 
 </html>

@@ -1,0 +1,268 @@
+﻿@using BlazorMonaco
+@using BlazorMonaco.Editor
+@using BlazorMonaco.Languages
+@using System.Text.Json
+@using YScriptEngine.Lsp.Roslyn
+@using YStreamUtils.Core.Events
+@implements IDisposable
+@inject IJSRuntime JsRuntime
+@inject RoslynLspProvider LspProvider
+@inject ILogger<CodeEditor> Logger
+
+<div class="editor-container" style="height: 500px; border: 1px solid #2d2d2d;">
+    <StandaloneCodeEditor @ref="_editor"
+                          Id="csharp-script-editor"
+                          ConstructionOptions="EditorConstructionOptions"
+                          OnDidInit="OnEditorInitialized"
+                          OnDidChangeModelContent="OnCodeChanged"
+                          CssClass="full"/>
+</div>
+
+<style>
+    .full {
+        width: 100%;
+        height: 100%;
+    }
+</style>
+
+<script type="module">
+    import { createHighlighter } from "https://esm.sh/shiki";
+    import { shikiToMonaco } from "https://esm.sh/@@shikijs/monaco"
+
+    window.initializeShikiHighlighter = async function () {
+        if (typeof monaco === 'undefined') {
+            setTimeout(window.initializeShikiHighlighter, 50);
+            return;
+        }
+
+        const highlighter = await createHighlighter({
+            themes: ['vitesse-dark'],
+            langs: ['csharp']
+        });
+
+        shikiToMonaco(highlighter, monaco);
+    };
+</script>
+
+@code {
+    private DotNetObjectReference<CodeEditor>? _objRef;
+    private StandaloneCodeEditor _editor = null!;
+    private CancellationTokenSource? _completionCts;
+    private Timer? _debounceTimer;
+    private bool _isInitialized = false;
+
+    [Parameter] public EventKey ScriptEventKey { get; set; } = EventKey.All;
+
+    private Type ActivePayloadType => Events.KnownTypeRegistry[ScriptEventKey];
+
+    private static StandaloneEditorConstructionOptions EditorConstructionOptions(StandaloneCodeEditor editor)
+    {
+        return new StandaloneEditorConstructionOptions
+        {
+            AutomaticLayout = true,
+            Language = "csharp",
+            Value = "// Write your script using the contextual globals...\n",
+            Theme = "vitesse-dark",
+            FormatOnType = true,
+            FormatOnPaste = true,
+            SemanticHighlightingEnabled = true
+        };
+    }
+
+    private async Task OnEditorInitialized()
+    {
+        var selector = new LanguageSelector("csharp");
+
+        var completionProvider = new CompletionItemProvider(
+            triggerCharacters: [".", " "],
+            provideCompletionItems: async (_, position, _) =>
+            {
+                if(_completionCts is not null) await _completionCts.CancelAsync()!;
+                _completionCts = new CancellationTokenSource();
+
+                try
+                {
+                    var model = await _editor.GetModel();
+                    if (model == null) return new CompletionList { Suggestions = [] };
+
+                    var cursorOffset = await model.GetOffsetAt(position);
+                    var currentCode = await model.GetValue(EndOfLinePreference.TextDefined, preserveBOM: false);
+
+                    var roslynItems = await LspProvider.GetCompletionsAsync(currentCode, cursorOffset, ActivePayloadType, _completionCts.Token);
+
+                    var wordInfo = await model.GetWordUntilPosition(position);
+                    var replaceRange = new BlazorMonaco.Range(position.LineNumber, wordInfo.StartColumn, position.LineNumber, wordInfo.EndColumn);
+                    
+                    var serializerOptions = new JsonSerializerOptions 
+                    { 
+                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase 
+                    };
+
+                    var suggestions = roslynItems.Select(item => new CompletionItem
+                    {
+                        Label = JsonSerializer.SerializeToElement(item.Label, serializerOptions),
+                        Kind = MapRoslynTagToMonacoKind(item.Type),
+                        InsertText = item.Label,
+                        Detail = item.Detail,
+                        Range = JsonSerializer.SerializeToElement(replaceRange, serializerOptions)
+                    }).ToList();
+
+                    return new CompletionList { Suggestions = suggestions };
+                }
+                catch (OperationCanceledException)
+                {
+                    return new CompletionList { Suggestions = [] };
+                }
+            },
+            resolveCompletionItem: null
+        );
+
+        await BlazorMonaco.Languages.Global.RegisterCompletionItemProvider(
+            JsRuntime, selector, completionProvider
+        );
+
+        var formatterProvider = new DocumentFormattingEditProvider(
+            displayName: "Roslyn C# Formatter",
+            provideDocumentFormattingEditsDelegate: async (_, _) =>
+            {
+                var model = await _editor.GetModel();
+                if (model == null) return [];
+
+                var currentCode = await model.GetValue(EndOfLinePreference.TextDefined, preserveBOM: false);
+                var formattedCode = await LspProvider.FormatCodeAsync(currentCode, ActivePayloadType, CancellationToken.None);
+                var fullRange = await model.GetFullModelRange();
+
+                return
+                [
+                    new TextEdit { Range = fullRange, Text = formattedCode }
+                ];
+            }
+        );
+
+        await BlazorMonaco.Languages.Global.RegisterDocumentFormattingEditProvider(
+            JsRuntime, selector, formatterProvider
+        );
+
+        var hoverProvider = new HoverProvider(async (modelId, position, context) =>
+        {
+            var model = await _editor.GetModel();
+            if (model == null) return new Hover();
+
+            var cursorOffset = await model.GetOffsetAt(position);
+            var currentCode = await model.GetValue(EndOfLinePreference.TextDefined, false);
+
+            var hoverText = await LspProvider.GetHoverInfoAsync(currentCode, cursorOffset, ActivePayloadType, CancellationToken.None);
+            if (string.IsNullOrEmpty(hoverText)) return new Hover();
+
+            var wordInfo = await model.GetWordUntilPosition(position);
+            var replaceRange = new BlazorMonaco.Range(position.LineNumber, wordInfo.StartColumn, position.LineNumber, wordInfo.EndColumn);
+
+            var markdown = new MarkdownString
+            {
+                Value = $"```csharp\n{hoverText}\n```",
+                IsTrusted = true
+            };
+
+            return new Hover
+            {
+                Contents = [markdown],
+                Range = replaceRange
+            };
+        });
+
+        await BlazorMonaco.Languages.Global.RegisterHoverProviderAsync(JsRuntime, selector, hoverProvider);
+
+        _isInitialized = true;
+
+        await RunDiagnosticsAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_isInitialized)
+        {
+            await RunDiagnosticsAsync();
+        }
+    }
+
+    private void OnCodeChanged(ModelContentChangedEvent e)
+    {
+        _debounceTimer?.Dispose();
+        _debounceTimer = new Timer(DebounceTimerCallback, null, 400, Timeout.Infinite);
+    }
+
+    private void DebounceTimerCallback(object? state)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await InvokeAsync(async () => await RunDiagnosticsAsync());
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"Diagnostics background error: {ex.Message}");
+            }
+        });
+    }
+
+    private async Task RunDiagnosticsAsync()
+    {
+        if (!_isInitialized) return;
+
+        var model = await _editor.GetModel();
+        if (model == null) return;
+
+        var currentCode = await model.GetValue(EndOfLinePreference.TextDefined, preserveBOM: false);
+        var diagnostics = await LspProvider.GetDiagnosticsAsync(currentCode, ActivePayloadType, CancellationToken.None);
+
+        var markers = new List<MarkerData>();
+        foreach (var diag in diagnostics)
+        {
+            var startPos = await model.GetPositionAt(diag.From);
+            var endPos = await model.GetPositionAt(diag.To);
+
+            markers.Add(new MarkerData
+            {
+                Severity = diag.Severity.ToLower() == "error" ? MarkerSeverity.Error : MarkerSeverity.Warning,
+                Message = diag.Message,
+                StartLineNumber = startPos.LineNumber,
+                StartColumn = startPos.Column,
+                EndLineNumber = endPos.LineNumber,
+                EndColumn = endPos.Column
+            });
+        }
+
+        await BlazorMonaco.Editor.Global.SetModelMarkers(JsRuntime, model, "roslyn-diagnostics", markers);
+    }
+
+    private CompletionItemKind MapRoslynTagToMonacoKind(string tag)
+    {
+        return tag.ToLower() switch
+        {
+            "class" => CompletionItemKind.Class,
+            "method" => CompletionItemKind.Method,
+            "property" => CompletionItemKind.Property,
+            "field" => CompletionItemKind.Field,
+            "keyword" => CompletionItemKind.Keyword,
+            _ => CompletionItemKind.Variable
+        };
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _objRef = DotNetObjectReference.Create(this);
+            
+            await JsRuntime.InvokeVoidAsync("initializeShikiHighlighter");
+        }
+    }
+
+    public void Dispose()
+    {
+        _completionCts?.Dispose();
+        _debounceTimer?.Dispose();
+    }
+
+}

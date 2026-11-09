@@ -1,62 +1,97 @@
 ﻿using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
 
 namespace YStreamUtils.Core.Events;
 
-public class EventBus : IEventBus
+public class EventBus(ILogger<EventBus> logger) : IEventBus
 {
     private readonly ConcurrentDictionary<EventKey, List<Func<object, CancellationToken, Task>>> _handlers = new();
+    
     private readonly List<Func<object, CancellationToken, Task>> _superHandlers = [];
+    private readonly Lock _superHandlersLock = new();
+
+    private readonly ConcurrentDictionary<Delegate, Func<object, CancellationToken, Task>> _genericWrapperMap = new();
 
     public Action Subscribe(EventKey eventKey, Func<object, CancellationToken, Task> handler)
     {
         if (eventKey == EventKey.All)
         {
-            _superHandlers.Add(handler);
-            return () => _superHandlers.Remove(handler);
-        }
-        
-        
-        _handlers.AddOrUpdate(
-            eventKey,
-            _ => [handler],
-            (_, currentHandlers) =>
+            lock (_superHandlersLock)
             {
-                lock (currentHandlers) { currentHandlers.Add(handler); }
-                return currentHandlers;
-            });
+                _superHandlers.Add(handler);
+            }
+            return () => { lock (_superHandlersLock) { _superHandlers.Remove(handler); } };
+        }
+
+        var currentHandlers = _handlers.GetOrAdd(eventKey, _ => []);
+        
+        lock (currentHandlers)
+        {
+            currentHandlers.Add(handler);
+        }
 
         return () =>
         {
-            if (!_handlers.TryGetValue(eventKey, out var currentHandlers)) return;
-            lock (currentHandlers) { currentHandlers.Remove(handler); }
+            if (!_handlers.TryGetValue(eventKey, out var handlers)) return;
+            
+            lock (handlers)
+            {
+                handlers.Remove(handler);
+                if (handlers.Count == 0)
+                {
+                    _handlers.TryRemove(eventKey, out _);
+                }
+            }
         };
     }
-    
+
     public Action Subscribe<T>(EventKey eventKey, Func<T, CancellationToken, Task> handler)
     {
-        return Subscribe(eventKey, WrappedHandler);
+        Func<object, CancellationToken, Task> wrappedHandler = (payload, token) => handler((T)payload, token);
+        _genericWrapperMap[handler] = wrappedHandler;
 
-        Task WrappedHandler(object payload, CancellationToken token) => handler((T)payload, token);
+        var unsubscribeAction = Subscribe(eventKey, wrappedHandler);
+
+        return () =>
+        {
+            unsubscribeAction();
+            _genericWrapperMap.TryRemove(handler, out _);
+        };
     }
 
     public async Task PublishAsync(EventKey eventKey, object? payload, CancellationToken cancellationToken = default)
     {
-        
-        var superHandlersTasks = Task.WhenAll(_superHandlers.Select(x => x(payload, cancellationToken)));
-        var regularHandlersTasks = Task.Run(() =>
-        {
-            if (!_handlers.TryGetValue(eventKey, out var handlers)) return new List<Task>();
+        var fallbackPayload = payload ?? new EmptyStruct();
+        List<Task> tasksToAwait = [];
 
-            List<Func<object, CancellationToken, Task>> handlersToExecute;
+        List<Func<object, CancellationToken, Task>> superSnapshot;
+        lock (_superHandlersLock)
+        {
+            superSnapshot = [.. _superHandlers];
+        }
+        tasksToAwait.AddRange(superSnapshot.Select(handler => handler(fallbackPayload, cancellationToken)));
+
+        if (_handlers.TryGetValue(eventKey, out var handlers))
+        {
+            List<Func<object, CancellationToken, Task>> regularSnapshot;
             lock (handlers)
             {
-                handlersToExecute = [.. handlers];
+                regularSnapshot = [.. handlers];
             }
-            
-            return handlersToExecute.Select(handler => handler(payload ?? new EmptyStruct(), cancellationToken));
-        }, cancellationToken);
-        
+            tasksToAwait.AddRange(regularSnapshot.Select(handler => handler(fallbackPayload, cancellationToken)));
+        }
 
-        await Task.WhenAll(superHandlersTasks, regularHandlersTasks);
+        if (tasksToAwait.Count > 0)
+        {
+            try
+            {
+                await Task.WhenAll(tasksToAwait);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "An error occurred while publishing event {EventKey}", eventKey);
+                throw;
+            }
+        }
     }
 }

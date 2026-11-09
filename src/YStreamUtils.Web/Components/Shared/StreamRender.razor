@@ -1,0 +1,109 @@
+﻿@typeparam TEventType
+@using System.Threading.Channels
+@using YStreamUtils.Core.Events
+@inject IEventBus EventBus
+@inject IJSRuntime Js
+@implements IDisposable
+
+@*I know this is ugly, I'll fix it later shut up*@
+<div style="height: @MaxHeight; min-height: 0; max-height: @MaxHeight; overflow-y: scroll; display: grid; align-content: end; position: relative;" @ref="_element">
+    <div style="display: flex; flex-direction: column; min-height: 0;">
+
+        @foreach (var item in _windowBuffer)
+        {
+            <div style="height: 30px; line-height: 30px; overflow: hidden; white-space: nowrap; flex-shrink: 0;">
+                @ItemTemplate(item)
+            </div>
+        }
+
+    </div>
+</div>
+
+@if (_isScrollPaused)
+{
+    <div style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.75); color: #fff; padding: 4px 12px; border-radius: 16px; font-size: 12px; cursor: pointer; z-index: 10;" @onclick="ResumeScrollingAsync">
+        Streaming paused. Click to snap to bottom ⬇️
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public EventKey EventKey { get; set; } = EventKey.All;
+    [Parameter, EditorRequired] public RenderFragment<TEventType> ItemTemplate { get; set; } = null!;
+    [Parameter] public int? MaxBufferLimit { get; set; } = 500;
+    [Parameter] public string MaxHeight { get; set; } = "400px";
+
+    private readonly List<TEventType> _windowBuffer = [];
+    private readonly Channel<TEventType> _channel = Channel.CreateUnbounded<TEventType>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
+    private readonly CancellationTokenSource _cts = new();
+    private Action? _unsubscribe;
+    
+    private ElementReference _element; 
+    private bool _isScrollPaused;
+
+    protected override void OnInitialized()
+    {
+        _unsubscribe = EventBus.Subscribe<TEventType>(EventKey, (evt, _) =>
+        {
+            _channel.Writer.TryWrite(evt);
+            return Task.CompletedTask;
+        });
+        _ = Task.Run(RenderLoopAsync);
+    }
+
+    private async Task RenderLoopAsync()
+    {
+        try
+        {
+            while (await _channel.Reader.WaitToReadAsync(_cts.Token))
+            {
+                var hasNewData = false;
+                while (_channel.Reader.TryRead(out var item))
+                {
+                    await InvokeAsync(() =>
+                    {
+                        _windowBuffer.Add(item);
+                        if (MaxBufferLimit.HasValue && _windowBuffer.Count > MaxBufferLimit.Value)
+                        {
+                            _windowBuffer.RemoveAt(0);
+                        }
+                    });
+                    hasNewData = true;
+                }
+
+                if (hasNewData)
+                {
+                    var wasAtBottom = await Js.InvokeAsync<bool>("isScrolledToBottom", _element, 20);
+                    await InvokeAsync(async () =>
+                    {
+                        _isScrollPaused = !wasAtBottom;
+                        StateHasChanged();
+                        if (wasAtBottom)
+                        {
+                            await Js.InvokeVoidAsync("scrollToBottom", _element);
+                        }
+                    });
+                }
+
+                await Task.Delay(25, _cts.Token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task ResumeScrollingAsync()
+    {
+        _isScrollPaused = false;
+        StateHasChanged();
+        await Js.InvokeVoidAsync("scrollToBottom", _element);
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _unsubscribe?.Invoke();
+        _cts.Dispose();
+        _windowBuffer.Clear();
+    }
+}
