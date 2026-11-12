@@ -3,4 +3,4 @@ using YStreamUtils.SDK.Plugin;
 
 namespace YStreamUtils.Core.Models;
 
-public record Plugin(IPlugin PluginInstance, PluginManifest Manifest, JsonNode PluginSettingsSchema);
+public record Plugin(PluginManifest Manifest, JsonNode PluginSettingsSchema);

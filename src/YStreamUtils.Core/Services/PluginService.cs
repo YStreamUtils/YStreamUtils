@@ -9,10 +9,8 @@ using Json.Schema;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using YScriptEngine.Jint.Generators;
 using YStreamUtils.Core.Data;
 using YStreamUtils.Core.Models;
-using YStreamUtils.Core.Plugins;
 using YStreamUtils.SDK.Plugin;
 using YStreamUtils.SDK.Registry;
 
@@ -28,8 +26,8 @@ public class PluginService(
     private readonly string _pluginDir = Path.Combine(Consts.ApplicationDataFolder, "plugins");
     private readonly SemaphoreSlim _lock = new(1, 1);
 
-    private Dictionary<string, Plugin> _activePlugins = new(StringComparer.OrdinalIgnoreCase);
-    private string _pluginTypeCache = string.Empty;
+    private ServiceProvider _activePlugins = new ServiceCollection().BuildServiceProvider();
+    private readonly Dictionary<string, Plugin> _loadedPlugins = new();
 
     public async Task DownloadAndInstallPluginAsync(PluginManifest manifest)
     {
@@ -71,8 +69,9 @@ private async Task ReloadLocalPluginsAsync()
     {
         Directory.CreateDirectory(_pluginDir);
         var directories = Directory.GetDirectories(_pluginDir);
-        var newActivePlugins = new Dictionary<string, Plugin>(StringComparer.OrdinalIgnoreCase);
-
+        var pluginServiceCollection = new ServiceCollection();
+        _loadedPlugins.Clear();
+        
         foreach (var folderPath in directories)
         {
             var folderName = Path.GetDirectoryName(folderPath);
@@ -112,21 +111,12 @@ private async Task ReloadLocalPluginsAsync()
 
                 if (entrypointType == null)
                     throw new InvalidDataException($"Entrypoint class implementing IPlugin missing inside {manifest.Name}.dll");
-                
-                var loggerFactory = hostProvider.GetRequiredService<ILoggerFactory>();
 
-                var pluginServiceCollection = new ServiceCollection();
-                pluginServiceCollection.AddSingleton(loggerFactory);
+                var pluginInstance = (IPlugin)ActivatorUtilities.CreateInstance(hostProvider, entrypointType);
 
-                pluginServiceCollection.AddSingleton<INetworkCapability>(new NetworkCapability(httpClient, manifest.Name));
-                pluginServiceCollection.AddSingleton<IFileReadCapability>(new FileReadCapability(folderPath));
-                pluginServiceCollection.AddSingleton<IFileWriteCapability>(new FileWriteCapability(folderPath, manifest.Name));
+                pluginServiceCollection.AddSingleton(pluginInstance);
+                _loadedPlugins.Add(manifest.Name, new Plugin(manifest, schemaNode));
 
-                await using var pluginServiceProvider = pluginServiceCollection.BuildServiceProvider();
-                var pluginInstance = (IPlugin)ActivatorUtilities.CreateInstance(pluginServiceProvider, entrypointType);
-
-                var pluginNamespace = GetSafePluginNamespace(manifest.Name);
-                newActivePlugins[pluginNamespace] = new Plugin(pluginInstance, manifest, schemaNode);
 
                 logger.LogInformation("Successfully instantiated C# Plugin Engine Environment context for: {Name}", manifest.Name);
             }
@@ -136,8 +126,7 @@ private async Task ReloadLocalPluginsAsync()
             }
         }
 
-        _pluginTypeCache = BuildDynamicPluginDefinitions(newActivePlugins);
-        _activePlugins = newActivePlugins;
+        _activePlugins = pluginServiceCollection.BuildServiceProvider();
     }
     finally
     {
@@ -150,46 +139,39 @@ private async Task ReloadLocalPluginsAsync()
         _lock.Wait();
         try
         {
-            return new Dictionary<string, Plugin>(_activePlugins);
+            return new Dictionary<string, Plugin>(_loadedPlugins);
         }
         finally
         {
             _lock.Release();
         }
     }
-
-    private static string GetSafePluginNamespace(string input) => new(input.Where(char.IsLetterOrDigit).ToArray());
-
-    private static string BuildDynamicPluginDefinitions(Dictionary<string, Plugin> plugins) =>
-        JintCmSchemaGenerator.GeneratePluginsSchema(plugins.ToDictionary(
-            x => x.Key,
-            x => x.Value.PluginInstance.GetType()
-        ));
-
-    public string GetDynamicPluginDefinitions() => _pluginTypeCache;
-
+    
     public string GetSettingsForPlugin(string name)
     {
-        var safeName = GetSafePluginNamespace(name);
-        if (!_activePlugins.TryGetValue(safeName, out var plugin))
+        _loadedPlugins.TryGetValue(name, out var plugin);
+        if (plugin is null)
+        {
             throw new KeyNotFoundException($"Plugin {name} not found");
+        }
+        
         using var dbContext = contextFactory.CreateDbContext();
+        
         var pluginSettings = dbContext.PluginSettings.FirstOrDefault(x => x.PluginName == plugin.Manifest.Name);
         return pluginSettings?.SettingsJson ?? "{}";
     }
 
     public string GetSettingsSchemaForPlugin(string name)
     {
-        var safeName = GetSafePluginNamespace(name);
-        _activePlugins.TryGetValue(safeName, out var plugin);
-
-        return plugin?.PluginSettingsSchema.ToJsonString() ?? "{}";
+        _loadedPlugins.TryGetValue(name, out var plugin);
+        return plugin is null 
+            ? throw new KeyNotFoundException($"Plugin {name} not found") 
+            : plugin.PluginSettingsSchema.ToJsonString();
     }
 
     public void SetSettingsForPlugin(string name, string newSettings)
     {
-        var safeName = GetSafePluginNamespace(name);
-        _activePlugins.TryGetValue(safeName, out var plugin);
+        _loadedPlugins.TryGetValue(name, out var plugin);
         if (plugin is null)
         {
             throw new KeyNotFoundException($"Plugin {name} not found");

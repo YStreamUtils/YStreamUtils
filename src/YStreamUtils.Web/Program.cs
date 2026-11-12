@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.Scripting;
 using Microsoft.Extensions.FileProviders;
 using YScriptEngine.Lsp.Roslyn;
 using YStreamUtils.Core.Events;
+using YStreamUtils.Core.Models;
 using YStreamUtils.Web.Components;
 using YStreamUtils.Web.Extensions;
 
@@ -100,7 +101,8 @@ Task.Run(async () =>
 var provider = app.Services.GetRequiredService<RoslynLspProvider>();
 foreach (var (_, value) in Events.KnownTypeRegistry)
 {
-    provider.PreCacheBaseSolution(value);
+    var scriptContextGeneric = typeof(ScriptContext<>).MakeGenericType(value);
+    provider.PreCacheBaseSolution(scriptContextGeneric);
 }
 
 app.MapFallbackToFile("index.html");
