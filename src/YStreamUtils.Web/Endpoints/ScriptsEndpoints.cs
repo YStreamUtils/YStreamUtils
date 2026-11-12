@@ -19,12 +19,6 @@ public static class ScriptsEndpoints
 {
     public static RouteGroupBuilder AddScriptsService(this RouteGroupBuilder groupBuilder)
     {
-        groupBuilder.MapGet("/scripts/monaco-env/{topic}", (EventKey topic, [FromServices] ScriptsService scriptsService) =>
-            {
-                var environment = scriptsService.GetMonacoEnvironment(topic);
-                return Results.Ok(new ScriptMetadataResponse(environment));
-            });
-
         groupBuilder.MapGet("/scripts/{scriptId}", async (string scriptId, [FromServices] IDbContextFactory<AppDbContext> contextFactory) =>
             {
                 await using var dbContext = await contextFactory.CreateDbContextAsync();

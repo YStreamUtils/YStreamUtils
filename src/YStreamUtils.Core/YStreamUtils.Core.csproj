@@ -29,10 +29,11 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+        <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.12" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
         <PackageReference Include="Reinforced.Typings" Version="1.6.7" />
-        <PackageReference Include="YScriptEngine.Jint" Version="1.0.5-alpha" />
-        <PackageReference Include="YScriptEngine.Lsp.Roslyn" Version="1.1.2-alpha" />
-        <PackageReference Include="YScriptEngine.Roslyn" Version="1.0.0-alpha" />
+        <PackageReference Include="YScriptEngine.Lsp.Roslyn" Version="1.1.4-alpha" />
+        <PackageReference Include="YScriptEngine.Roslyn" Version="1.1.5-alpha" />
         <PackageReference Include="YStreamUtils.SDK" Version="1.0.2-alpha" />
     </ItemGroup>
 

@@ -8,12 +8,13 @@ namespace YStreamUtils.Core.Events;
 
 public static class Events
 {
-    public static readonly Dictionary<EventKey, Type> KnownTypeRegistry = new()
+    public static readonly Dictionary<string, Type> KnownTypeRegistry = new()
     {
         { EventKey.All, typeof(object) },
+        { EventKey.ApplicationLog, typeof(string) },
         { EventKey.StreamChatMessage, typeof(StreamEventEnvelope<StreamChatMessageEvent>) },
         { EventKey.YoutubeSuperChat, typeof(StreamEventEnvelope<StreamSuperChatMessageEvent>) },
-        { EventKey.ManualInvoke, typeof(StreamEventEnvelope<EmptyStruct>) },
+        { EventKey.ManualInvoke, typeof(EmptyStruct) },
         { EventKey.StreamDiscovered, typeof(StreamEventEnvelope<StreamDiscoveredEvent>) },
         { EventKey.StreamRemoved, typeof(StreamEventEnvelope<StreamRemovedEvent>) },
         { EventKey.StreamMetrics, typeof(StreamEventEnvelope<StreamMetricsEvent>) },

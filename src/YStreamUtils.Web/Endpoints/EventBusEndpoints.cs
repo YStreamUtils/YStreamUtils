@@ -22,7 +22,7 @@ public static class EventBusEndpoints
             });
 
         groupBuilder.MapGet("/events/listen", async (
-                [FromQuery] EventKey[]? eventKey,
+                [FromQuery] string[]? eventKey,
                 HttpContext context,
                 [FromServices] IEventBus eventBus,
                 CancellationToken cancellationToken) =>
@@ -52,7 +52,7 @@ public static class EventBusEndpoints
                             var eventKeyToken = Events.KnownTypeRegistry
                                 .FirstOrDefault(x => x.Value == runtimeType).Key;
 
-                            var eventName = eventKeyToken.Value ?? "app:unknown";
+                            var eventName = eventKeyToken ?? "app:unknown";
                             
                             await context.Response.WriteAsync($"event: {eventName}\n", cancellationToken);
                             

@@ -2,9 +2,9 @@
 
 public interface IEventBus
 {
-    Task PublishAsync(EventKey eventKey, object? payload, CancellationToken cancellationToken = default);
+    Task PublishAsync(string eventKey, object? payload, CancellationToken cancellationToken = default);
 
-    Action Subscribe(EventKey eventKey, Func<object, CancellationToken, Task> handler);
+    Action Subscribe(string eventKey, Func<object, CancellationToken, Task> handler);
     
-    Action Subscribe<T>(EventKey eventKey, Func<T, CancellationToken, Task> handler);
+    Action Subscribe<T>(string eventKey, Func<T, CancellationToken, Task> handler);
 }

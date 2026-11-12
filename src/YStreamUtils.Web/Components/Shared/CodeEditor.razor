@@ -5,6 +5,7 @@
 @using System.Text.Json
 @using YScriptEngine.Lsp.Roslyn
 @using YStreamUtils.Core.Events
+@using YStreamUtils.Core.Models
 @implements IDisposable
 @inject IJSRuntime JsRuntime
 @inject RoslynLspProvider LspProvider
@@ -52,23 +53,37 @@
     private Timer? _debounceTimer;
     private bool _isInitialized;
 
-    [Parameter] public EventKey ScriptEventKey { get; set; } = EventKey.All;
+    [Parameter] public string ScriptEventKey { get; set; } = EventKey.All;
 
-    private Type ActivePayloadType => Events.KnownTypeRegistry[ScriptEventKey];
+    private Type ActivePayloadType =>  typeof(ScriptContext<>).MakeGenericType(Events.KnownTypeRegistry[ScriptEventKey]);
 
+    public async Task<string> GetValueAsync()
+    {
+        var model = await _editor.GetModel();
+        if(model is null) return string.Empty;
+        return await model.GetValue(EndOfLinePreference.TextDefined, false);
+    }
+    
     private StandaloneEditorConstructionOptions EditorConstructionOptions(StandaloneCodeEditor editor)
     {
         var methods = ActivePayloadType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .Where(method => !method.IsSpecialName && method.DeclaringType != typeof(object))
             .Select(info => info.Name);
 
-        var propertiess = ActivePayloadType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+        var properties = ActivePayloadType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Select(info => info.Name);
+
+        List<string> defaultText =
+        [
+            $"// The globals are: {string.Join(", ", properties)}",
+            "List<string> test = [\"Hello\", \"World!\"];",
+            "Logger.LogInformation(string.Join(\" \", test));"
+        ];
         return new StandaloneEditorConstructionOptions
         {
             AutomaticLayout = true,
             Language = "csharp",
-            Value = $"// The global Methods are: {string.Join(",", methods)}\n// The global properties are: {string.Join(",", propertiess)}\nList<string> test = [];",
+            Value = string.Join("\n", defaultText),
             Theme = "dark-plus",
             FormatOnType = true,
             FormatOnPaste = true,
@@ -94,6 +109,7 @@
 
                     var cursorOffset = await model.GetOffsetAt(position);
                     var currentCode = await model.GetValue(EndOfLinePreference.TextDefined, preserveBOM: false);
+                    
 
                     var roslynItems = await LspProvider.GetCompletionsAsync(currentCode, cursorOffset, ActivePayloadType, _completionCts.Token);
 
@@ -178,6 +194,64 @@
         });
 
         await BlazorMonaco.Languages.Global.RegisterHoverProviderAsync(JsRuntime, selector, hoverProvider);
+        
+        var codeActionProvider = new CodeActionProvider(
+            async (modelUri, range, _) =>
+            {
+                var model = await _editor.GetModel();
+                if (model == null) return new CodeActionList { Actions = [] };
+
+                var startOffset = await model.GetOffsetAt(new Position
+                {
+                    LineNumber = range.StartLineNumber,
+                    Column = range.StartColumn
+                });
+                var endOffset = await model.GetOffsetAt(new Position
+                {
+                    LineNumber = range.EndLineNumber,
+                    Column = range.EndColumn
+                });
+
+                var currentCode = await model.GetValue(EndOfLinePreference.TextDefined, preserveBOM: false);
+                var quickActions = await LspProvider.GetQuickActionsAsync(
+                    currentCode, startOffset, endOffset, ActivePayloadType, CancellationToken.None);
+
+                var actions = quickActions.Select(qa => new CodeAction
+                {
+                    Title = qa.Title,
+                    Kind = "quickfix",
+                    IsPreferred = true,
+                    Edit = new WorkspaceEdit
+                    {
+                        Edits =
+                        [
+                            new WorkspaceTextEdit
+                            {
+                                ResourceUri = modelUri,
+                                TextEdit = new TextEditWithOptions
+                                {
+                                    Range = new BlazorMonaco.Range(
+                                        qa.StartLine,
+                                        qa.StartColumn,
+                                        qa.EndLine,
+                                        qa.EndColumn),
+                                    Text = qa.NewText
+                                }
+                            }
+                        ]
+                    }
+                }).ToList();
+
+                return new CodeActionList
+                {
+                    Actions = actions
+                };
+            }
+        );
+
+        await BlazorMonaco.Languages.Global.RegisterCodeActionProvider(
+            JsRuntime, selector, codeActionProvider
+        );
 
         _isInitialized = true;
 
@@ -231,6 +305,9 @@
 
             markers.Add(new MarkerData
             {
+                Code = string.IsNullOrEmpty(diag.Code) 
+                    ? null 
+                    : JsonSerializer.SerializeToElement(diag.Code),
                 Severity = diag.Severity.ToLower() == "error" ? MarkerSeverity.Error : MarkerSeverity.Warning,
                 Message = diag.Message,
                 StartLineNumber = startPos.LineNumber,

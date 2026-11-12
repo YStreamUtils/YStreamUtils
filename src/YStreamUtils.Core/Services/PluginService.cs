@@ -9,6 +9,7 @@ using Json.Schema;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using YScriptEngine.Lsp.Roslyn;
 using YStreamUtils.Core.Data;
 using YStreamUtils.Core.Models;
 using YStreamUtils.SDK.Plugin;
@@ -16,18 +17,45 @@ using YStreamUtils.SDK.Registry;
 
 namespace YStreamUtils.Core.Services;
 
-public class PluginService(
-    ILogger<PluginService> logger,
-    HttpClient httpClient,
-    IDbContextFactory<AppDbContext> contextFactory,
-    SettingsService settingsService,
-    IServiceProvider hostProvider)
+public class PluginService
 {
     private readonly string _pluginDir = Path.Combine(Consts.ApplicationDataFolder, "plugins");
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     private ServiceProvider _activePlugins = new ServiceCollection().BuildServiceProvider();
     private readonly Dictionary<string, Plugin> _loadedPlugins = new();
+    private readonly List<AssemblyLoadContext> _pluginContexts = [];
+    private readonly ILogger<PluginService> _logger;
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly HttpClient _httpClient;
+    private readonly IDbContextFactory<AppDbContext> _contextFactory;
+    private readonly SettingsService _settingsService;
+    private readonly IServiceProvider _hostProvider;
+
+    public PluginService(ILogger<PluginService> logger,
+        ILoggerFactory loggerFactory,
+        HttpClient httpClient,
+        IDbContextFactory<AppDbContext> contextFactory,
+        SettingsService settingsService,
+        IServiceProvider hostProvider)
+    {
+        _logger = logger;
+        _loggerFactory = loggerFactory;
+        _httpClient = httpClient;
+        _contextFactory = contextFactory;
+        _settingsService = settingsService;
+        _hostProvider = hostProvider;
+        
+        AssemblyLoadContext.Default.Resolving += (_, assemblyName) =>
+        {
+            return _pluginContexts
+                .SelectMany(ctx => ctx.Assemblies)
+                .FirstOrDefault(a => string.Equals(a.GetName().Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase));
+        };
+
+        _ = ReloadLocalPluginsAsync();
+    }
+
 
     public async Task DownloadAndInstallPluginAsync(PluginManifest manifest)
     {
@@ -35,9 +63,9 @@ public class PluginService(
         var downloadUrl =
             $"https://github.com/{manifest.Source.Owner}/{manifest.Source.Repository}/releases/download/{version}/{manifest.Name}.dll";
 
-        logger.LogInformation("Streaming raw plugin binary file target asset: {Url}", downloadUrl);
+        _logger.LogInformation("Streaming raw plugin binary file target asset: {Url}", downloadUrl);
 
-        using var response = await httpClient.GetAsync(downloadUrl);
+        using var response = await _httpClient.GetAsync(downloadUrl);
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException($"HTTP bundle asset download failed status: {response.StatusCode}");
@@ -62,43 +90,74 @@ public class PluginService(
         await ReloadLocalPluginsAsync();
     }
 
-private async Task ReloadLocalPluginsAsync()
+public async Task ReloadLocalPluginsAsync()
 {
     await _lock.WaitAsync();
     try
     {
+        _logger.LogInformation("Before Lock 2");
+        foreach (var oldContext in _pluginContexts)
+        {
+            oldContext.Unload();
+        }
+        _pluginContexts.Clear();
+        _loadedPlugins.Clear();
+
         Directory.CreateDirectory(_pluginDir);
         var directories = Directory.GetDirectories(_pluginDir);
         var pluginServiceCollection = new ServiceCollection();
-        _loadedPlugins.Clear();
-        
+
         foreach (var folderPath in directories)
         {
-            var folderName = Path.GetDirectoryName(folderPath);
-            var dllFiles = Directory.GetFiles(folderPath, "*.dll");
+            var folderName = Path.GetFileName(folderPath);
+            var sharedDllFileName = Path.GetFileName(typeof(PluginManifestAttribute).Assembly.Location);
+            var dllFiles = Directory.GetFiles(folderPath, "*.dll")
+                .Where(f => 
+                {
+                    var fileName = Path.GetFileName(f);
+                    return !fileName.Equals(sharedDllFileName, StringComparison.OrdinalIgnoreCase)
+                           && !fileName.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase)
+                           && !fileName.StartsWith("System.", StringComparison.OrdinalIgnoreCase);
+                })
+                .ToArray();
             
-            switch (dllFiles.Length)
+            if (dllFiles.Length == 0)
             {
-                case 0:
-                    logger.LogError("No files found for folder: {FolderPath}", folderPath);
-                    continue;
-                case > 1:
-                    logger.LogError("Multiple files found for folder: {FolderPath}", folderPath);
-                    continue;
+                _logger.LogError("No files found for folder: {FolderPath}", folderPath);
+                continue;
             }
 
-            var dllPath = dllFiles[0];
+            var expectedDll = Path.Combine(folderPath, $"{folderName}.dll");
+            var orderedDlls = File.Exists(expectedDll)
+                ? dllFiles.OrderByDescending(f => f.Equals(expectedDll, StringComparison.OrdinalIgnoreCase))
+                : dllFiles.AsEnumerable();
 
+            PluginLoadContext? loadContext = null;
+            
             try
             {
-                var loadContext = new AssemblyLoadContext($"ALC_{folderName}", isCollectible: false);
+                var enumerable = orderedDlls as string[] ?? [.. orderedDlls];
+                var primaryDll = enumerable.First();
+                _logger.LogInformation("Loading primary assembly for: {Name}", primaryDll);
+                loadContext = new PluginLoadContext(folderName, primaryDll);
 
-                await using var dllStream = File.OpenRead(dllPath);
-                var assembly = loadContext.LoadFromStream(dllStream);
+                Assembly? pluginAssembly = null;
+                PluginManifestAttribute? attr = null;
+                
+                
+                foreach (var dll in enumerable)
+                {
+                    var candidate = loadContext.LoadFromAssemblyPath(Path.GetFullPath(dll));
+                    var candidateAttr = candidate.GetCustomAttribute<PluginManifestAttribute>();
 
-                var attr = assembly.GetCustomAttribute<PluginManifestAttribute>();
-                if (attr == null)
-                    throw new UnauthorizedAccessException($"Assembly '{Path.GetFileName(dllPath)}' is missing [assembly: PluginManifestAttribute].");
+                    if (candidateAttr == null) continue;
+                    pluginAssembly = candidate;
+                    attr = candidateAttr;
+                    break;
+                }
+
+                if (pluginAssembly == null || attr == null)
+                    throw new UnauthorizedAccessException($"No assembly in '{folderName}' has [assembly: PluginManifestAttribute].");
 
                 var manifest = attr.ToManifest();
 
@@ -106,35 +165,43 @@ private async Task ReloadLocalPluginsAsync()
                     ? Consts.IndentedSerializerOptions.GetJsonSchemaAsNode(attr.SettingsType)
                     : new JsonObject();
 
-                var entrypointType = assembly.GetTypes()
+                var entrypointType = pluginAssembly.GetTypes()
                     .FirstOrDefault(t => typeof(IPlugin).IsAssignableFrom(t) && t is { IsInterface: false, IsAbstract: false });
 
                 if (entrypointType == null)
                     throw new InvalidDataException($"Entrypoint class implementing IPlugin missing inside {manifest.Name}.dll");
+                
+                var genericLoggerType = typeof(Logger<>).MakeGenericType(entrypointType);
+                var pluginLogger = Activator.CreateInstance(genericLoggerType, _loggerFactory)!;
+                
+                var pluginInstance = (IPlugin)ActivatorUtilities.CreateInstance(_hostProvider, entrypointType, pluginLogger);
 
-                var pluginInstance = (IPlugin)ActivatorUtilities.CreateInstance(hostProvider, entrypointType);
+                pluginServiceCollection.AddSingleton(entrypointType, pluginInstance);
+                _loadedPlugins.Add(manifest.Name, new Plugin(entrypointType, manifest, schemaNode));
+                _pluginContexts.Add(loadContext);
 
-                pluginServiceCollection.AddSingleton(pluginInstance);
-                _loadedPlugins.Add(manifest.Name, new Plugin(manifest, schemaNode));
-
-
-                logger.LogInformation("Successfully instantiated C# Plugin Engine Environment context for: {Name}", manifest.Name);
+                _logger.LogInformation("Successfully instantiated Plugin: {Name}", manifest.Name);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed execution configuration for folder: {Dir}", folderName);
+                loadContext?.Unload();
+                _logger.LogError(ex, "Failed execution configuration for folder: {Dir}", folderName);
             }
         }
-
+        
         _activePlugins = pluginServiceCollection.BuildServiceProvider();
     }
     finally
     {
         _lock.Release();
+        var lsp = _hostProvider.GetRequiredService<RoslynLspProvider>();
+        lsp.InvalidateCache();
     }
 }
 
-    public Dictionary<string, Plugin> GetActivePlugins()
+public IServiceProvider GetPluginServiceProvider() => _activePlugins;
+
+public Dictionary<string, Plugin> GetActivePlugins()
     {
         _lock.Wait();
         try
@@ -155,7 +222,7 @@ private async Task ReloadLocalPluginsAsync()
             throw new KeyNotFoundException($"Plugin {name} not found");
         }
         
-        using var dbContext = contextFactory.CreateDbContext();
+        using var dbContext = _contextFactory.CreateDbContext();
         
         var pluginSettings = dbContext.PluginSettings.FirstOrDefault(x => x.PluginName == plugin.Manifest.Name);
         return pluginSettings?.SettingsJson ?? "{}";
@@ -188,7 +255,7 @@ private async Task ReloadLocalPluginsAsync()
             throw new ArgumentException($"Invalid plugin settings configuration. Errors: {errors}");
         }
 
-        using var dbContext = contextFactory.CreateDbContext();
+        using var dbContext = _contextFactory.CreateDbContext();
 
         var pluginSettings = dbContext.PluginSettings.First(x => x.PluginName == plugin.Manifest.Name);
         pluginSettings.SettingsJson = newSettings;
@@ -197,7 +264,7 @@ private async Task ReloadLocalPluginsAsync()
 
     public async Task<List<PluginManifest>> FetchAllRegistryPluginsAsync()
     {
-        var registryUrls = settingsService.GetSettings().PluginSettings.Repositories;
+        var registryUrls = _settingsService.GetSettings().PluginSettings.Repositories;
         if (registryUrls == null || registryUrls.Count == 0)
         {
             throw new InvalidOperationException("No plugin registry repository endpoints are configured in settings.");
@@ -208,7 +275,7 @@ private async Task ReloadLocalPluginsAsync()
 
         foreach (var url in registryUrls.Where(url => !string.IsNullOrWhiteSpace(url)))
         {
-            logger.LogInformation("Querying plugin registry workspace source: {Url}", url);
+            _logger.LogInformation("Querying plugin registry workspace source: {Url}", url);
             try
             {
                 var plugins = await FetchSingleRegistryAsync(url);
@@ -216,7 +283,7 @@ private async Task ReloadLocalPluginsAsync()
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Skipping failed registry destination pipeline context: {Url}", url);
+                _logger.LogError(ex, "Skipping failed registry destination pipeline context: {Url}", url);
             }
         }
 
@@ -225,7 +292,7 @@ private async Task ReloadLocalPluginsAsync()
 
     private async Task<List<PluginManifest>> FetchSingleRegistryAsync(string url)
     {
-        var distribution = await httpClient.GetFromJsonAsync<RegistryDistribution>(url);
+        var distribution = await _httpClient.GetFromJsonAsync<RegistryDistribution>(url);
         return distribution?.Plugins ?? [];
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using Google.Apis.YouTube.v3;
 
 namespace YStreamUtils.Core.Models;
@@ -17,6 +18,6 @@ public static class Consts
 
     public static readonly JsonSerializerOptions IndentedSerializerOptions = new()
     {
-        WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase, TypeInfoResolver = new DefaultJsonTypeInfoResolver()
     };
 }

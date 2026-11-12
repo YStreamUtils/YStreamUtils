@@ -1,6 +1,11 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using YScriptEngine.Abstractions;
+using YScriptEngine.Lsp.Roslyn;
 using YScriptEngine.Roslyn;
+using YStreamUtils.Core.Data;
+using YStreamUtils.Core.Entities;
 using YStreamUtils.Core.Events;
 using YStreamUtils.Core.Models;
 
@@ -11,12 +16,13 @@ public partial class ScriptsService(
     ILogger<ScriptsService> logger,
     IEventBus eventBus,
     PluginService pluginService,
-    IServiceProvider serviceProvider)
+    IServiceProvider serviceProvider,
+    IDbContextFactory<AppDbContext> dbContextFactory)
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly Dictionary<string, Action> _activeSubscriptions = new();
 
-    public async Task RegisterScriptAndBindToBusAsync(EventKey topic, string scriptId, string source)
+    public async Task RegisterScriptAndBindToBusAsync(string topic, string scriptId, string source)
     {
         await _lock.WaitAsync();
         try
@@ -27,19 +33,41 @@ public partial class ScriptsService(
                 _activeSubscriptions.Remove(scriptId);
             }
 
-            if (Events.Events.KnownTypeRegistry.TryGetValue(topic, out var targetContextType))
+            if (!Events.Events.KnownTypeRegistry.TryGetValue(topic, out var targetContextType))
             {
                 logger.LogError("No registered context mapping envelope found for event topic: {Topic}", topic);
                 return;
             }
 
-            var compiledScript = await compiler.CompileAsync(source, targetContextType!);
+            var scriptContextType = typeof(ScriptContext<>).MakeGenericType(targetContextType);
+            var compiledScript = await compiler.CompileAsync(source, scriptContextType);
 
-            var eventNameString = topic.ToString();
+            await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+            var existing = await dbContext.UserScripts
+                .FirstOrDefaultAsync(s => s.ScriptId == scriptId);
+
+            if (existing is null)
+            {
+                dbContext.UserScripts.Add(new UserScript
+                {
+                    ScriptId = scriptId,
+                    Source = source,
+                    Topic = topic
+                });
+            }
+            else
+            {
+                existing.Source = source;
+                existing.Topic = topic;
+            }
+
+            await dbContext.SaveChangesAsync();
+            
+            var eventNameString = topic;
             
             var unsubscribeAction = eventBus.Subscribe(topic, async (payload, _) =>
             {
-                var contextInstance = CreateTypedContext((dynamic)payload, eventNameString, serviceProvider, serviceProvider);
+                var contextInstance = CreateTypedContext((dynamic)payload, scriptId, eventNameString, serviceProvider, pluginService.GetPluginServiceProvider());
                 
                 try
                 {
@@ -63,10 +91,26 @@ public partial class ScriptsService(
     
     private static IScriptContext CreateTypedContext<TPayload>(
         TPayload payload,
+        string scriptName,
         string eventName,
         IServiceProvider hostServices, 
         IServiceProvider plugins)
     {
-        return new ScriptContext<TPayload>(eventName, payload, plugins, hostServices);
+        return new ScriptContext<TPayload>(scriptName, eventName, payload, plugins, hostServices);
+    }
+
+    public async Task BuildProjectCaches()
+    {
+        var roslynLsp = serviceProvider.GetRequiredService<RoslynLspProvider>();
+        foreach (var (_, value) in Events.Events.KnownTypeRegistry)
+        {
+            var scriptContextGeneric = typeof(ScriptContext<>).MakeGenericType(value);
+            roslynLsp.PreCacheBaseSolution(scriptContextGeneric);
+        }
+    }
+
+    public async Task CreateScriptOptions()
+    {
+        
     }
 }

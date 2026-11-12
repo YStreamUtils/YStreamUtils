@@ -1,6 +1,9 @@
 ﻿@page "/"
 @using YStreamUtils.Core.Events
+@using YStreamUtils.Core.Services
 @using YStreamUtils.Web.Components.Shared
+@inject ScriptsService ScriptService
+@inject IEventBus EventBus
 @rendermode InteractiveServer
 
 <PageTitle>Home</PageTitle>
@@ -9,7 +12,7 @@
 
 <p>Welcome to your new app.</p>
 
-<StreamRender TEventType="string" EventKey="@EventKey.ApplicationLog" 
+<StreamRender TEventType="string" SelectedEventKey="@EventKey.ApplicationLog" 
               MaxBufferLimit="1000" 
               MaxHeight="400px">
   <ItemTemplate Context="log">
@@ -19,4 +22,32 @@
   </ItemTemplate>
 </StreamRender>
 
-<CodeEditor ScriptEventKey="EventKey.StreamChatMessage"/>
+<select @bind="_currentKey" class="form-select">
+  @foreach (var eventKey in EventKey.KnownKeys)
+  {
+    <option value="@eventKey">@eventKey</option>
+  }
+</select>
+
+<input type="text" @bind="@_scriptName"/>
+<button @onclick="SaveAndDeployScript">Save Script</button>
+<button @onclick="SendManualEvent">Test Manual</button>
+
+<CodeEditor @ref="_editor" ScriptEventKey="@_currentKey" />
+
+@code {
+  private string _scriptName = "test_script";
+  private string _currentKey = EventKey.StreamChatMessage;
+  private CodeEditor _editor = null!;
+
+  private async Task SaveAndDeployScript()
+  {
+    var code = await _editor.GetValueAsync();
+    await ScriptService.RegisterScriptAndBindToBusAsync(_currentKey, _scriptName, code);
+  }
+
+  private async Task SendManualEvent()
+  {
+    await EventBus.PublishAsync(EventKey.ManualInvoke, null);
+  }
+}

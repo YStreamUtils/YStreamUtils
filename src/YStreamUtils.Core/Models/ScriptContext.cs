@@ -1,8 +1,11 @@
-﻿using YScriptEngine.Abstractions;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using YScriptEngine.Abstractions;
 
 namespace YStreamUtils.Core.Models;
 
 public class ScriptContext<T>(
+    string scriptName,
     string eventName,
     T eventData,
     IServiceProvider plugins,
@@ -14,5 +17,7 @@ public class ScriptContext<T>(
     public T EventData { get; init; } = eventData;
 
     public IServiceProvider Plugins { get; init; } = plugins;
+    
     public IServiceProvider Services { get; init; } = services;
+    public ILogger Logger => Services.GetRequiredService<ILoggerFactory>().CreateLogger(scriptName);
 }

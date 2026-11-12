@@ -30,16 +30,4 @@ public abstract class AppDbContext(
             optionsBuilder.AddInterceptors(new DataProtectionInterceptor(logger, provider));
         }
     }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        base.OnModelCreating(modelBuilder);
-        
-        modelBuilder.Entity<UserScript>()
-            .Property(e => e.Topic)
-            .HasConversion(
-                v => v.Value,
-                v => EventKey.Custom(v)
-            );
-    }
 }

@@ -3,8 +3,9 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Scripting;
 using Microsoft.Extensions.FileProviders;
 using YScriptEngine.Lsp.Roslyn;
+using YScriptEngine.Roslyn;
 using YStreamUtils.Core.Events;
-using YStreamUtils.Core.Models;
+using YStreamUtils.Core.Services;
 using YStreamUtils.Web.Components;
 using YStreamUtils.Web.Extensions;
 
@@ -13,58 +14,78 @@ var builder = WebApplication.CreateBuilder();
 builder.AddYStreamUtils();
 
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents(options =>
-    {
-        options.DetailedErrors = true;
-    });
+    .AddInteractiveServerComponents(options => { options.DetailedErrors = true; });
 
 builder.Services.AddSingleton<RoslynLspProvider>();
-builder.Services.AddSingleton<ScriptOptions>(sp =>
-        {
-            var coreAssemblyLocation = typeof(object).Assembly.Location;
-            var runtimeDirectory = Path.GetDirectoryName(coreAssemblyLocation)!;
+builder.Services.AddSingleton<RoslynCompiler>();
 
-            var coreAssemblies = new MetadataReference[]
-            {
-                MetadataReference.CreateFromFile(coreAssemblyLocation),
-                MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(List<>).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Text.Json.JsonSerializer).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Text.RegularExpressions.Regex).Assembly.Location),
-                MetadataReference.CreateFromFile(Path.Combine(runtimeDirectory, "System.Runtime.dll")),
-                MetadataReference.CreateFromFile(Path.Combine(runtimeDirectory, "System.Collections.dll")),
-                MetadataReference.CreateFromFile(Path.Combine(runtimeDirectory, "System.Threading.Tasks.dll")),
-                MetadataReference.CreateFromFile(Assembly.GetEntryAssembly()!.Location) 
-            };
+var baseScriptOptions = new Lazy<ScriptOptions>(() =>
+{
+    var coreAssemblyLocation = typeof(object).Assembly.Location;
+    var runtimeDirectory = Path.GetDirectoryName(coreAssemblyLocation)!;
 
-            var appDomainAssemblies = AppDomain.CurrentDomain.GetAssemblies()
-                .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
-                .Select(MetadataReference (a) => MetadataReference.CreateFromFile(a.Location));
+    var coreAssemblies = new MetadataReference[]
+    {
+        MetadataReference.CreateFromFile(coreAssemblyLocation),
+        MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
+        MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
+        MetadataReference.CreateFromFile(typeof(List<>).Assembly.Location),
+        MetadataReference.CreateFromFile(typeof(System.Text.Json.JsonSerializer).Assembly.Location),
+        MetadataReference.CreateFromFile(typeof(System.Text.RegularExpressions.Regex).Assembly.Location),
+        MetadataReference.CreateFromFile(typeof(ServiceProvider).Assembly.Location),
+        MetadataReference.CreateFromFile(Path.Combine(runtimeDirectory, "System.Runtime.dll")),
+        MetadataReference.CreateFromFile(Path.Combine(runtimeDirectory, "System.Collections.dll")),
+        MetadataReference.CreateFromFile(Path.Combine(runtimeDirectory, "System.Threading.Tasks.dll")),
+        MetadataReference.CreateFromFile(Assembly.GetEntryAssembly()!.Location)
+    };
 
-            var allReferences = coreAssemblies
-                .Concat(appDomainAssemblies)
-                .GroupBy(r => r is PortableExecutableReference pe ? pe.FilePath : r.ToString()) 
-                .Select(g => g.First())
-                .ToArray();
+    var appDomainAssemblies = AppDomain.CurrentDomain.GetAssemblies()
+        .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+        .Select(MetadataReference (a) => MetadataReference.CreateFromFile(a.Location));
 
-            string[] globalImports =
-            [
-                "System", 
-                "System.IO", 
-                "System.Text", 
-                "System.Text.Json", 
-                "System.Text.RegularExpressions", 
-                "System.Linq",
-                "System.Collections.Generic", 
-                "System.Threading.Tasks"
-            ];
+    var baseReferences = coreAssemblies
+        .Concat(appDomainAssemblies)
+        .GroupBy(r => r is PortableExecutableReference pe ? pe.FilePath : r.ToString())
+        .Select(g => g.First());
 
-            return ScriptOptions.Default
-                .WithReferences(Enumerable.Empty<Assembly>()) 
-                .AddReferences(allReferences)                 
-                .WithImports(globalImports);
-        });
+    string[] globalImports =
+    [
+        "System", "System.IO", "System.Text", "System.Text.Json",
+        "System.Text.RegularExpressions", "System.Linq",
+        "System.Collections.Generic", "System.Threading.Tasks",
+        "Microsoft.Extensions.DependencyInjection", "Microsoft.Extensions.Logging"
+    ];
+
+    return ScriptOptions.Default
+        .WithReferences(baseReferences)
+        .WithImports(globalImports);
+});
+
+builder.Services.AddTransient<ScriptOptions>(sp =>
+{
+    var pluginService = sp.GetRequiredService<PluginService>();
+    var activePlugins = pluginService.GetActivePlugins();
+    if (activePlugins.Count == 0) return baseScriptOptions.Value;
+
+    var pluginAssemblies = activePlugins.Values
+        .Select(p => p.PluginType.Assembly)
+        .Distinct()
+        .ToArray();
+
+    var pluginReferences = pluginAssemblies
+        .Where(ass => !ass.IsDynamic && !string.IsNullOrEmpty(ass.Location))
+        .Select(ass => MetadataReference.CreateFromFile(ass.Location));
+
+    var pluginImports = pluginAssemblies
+        .SelectMany(ass => ass.ExportedTypes)
+        .Select(t => t.Namespace)
+        .Where(ns => !string.IsNullOrEmpty(ns))
+        .Distinct();
+
+    return baseScriptOptions.Value
+        .AddReferences(pluginReferences)
+        .AddImports(pluginImports!);
+});
 
 var app = builder.Build();
 
@@ -73,21 +94,9 @@ app.UseDefaultEndpoints();
 app.UseAntiforgery();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseStaticFiles();
-}
-else
-{
-    var manifestProvider = new ManifestEmbeddedFileProvider(typeof(Program).Assembly, "wwwroot");
-    app.UseStaticFiles(new StaticFileOptions
-    {
-        FileProvider = manifestProvider
-    });
-}
+app.UseStaticFiles();
 
 var eventBus = app.Services.GetRequiredService<IEventBus>();
-var logger = app.Services.GetRequiredService<ILogger<Program>>();
 Task.Run(async () =>
 {
     var tracker = 0;
@@ -98,12 +107,6 @@ Task.Run(async () =>
     }
 });
 
-var provider = app.Services.GetRequiredService<RoslynLspProvider>();
-foreach (var (_, value) in Events.KnownTypeRegistry)
-{
-    var scriptContextGeneric = typeof(ScriptContext<>).MakeGenericType(value);
-    provider.PreCacheBaseSolution(scriptContextGeneric);
-}
 
 app.MapFallbackToFile("index.html");
 

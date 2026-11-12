@@ -5,14 +5,14 @@ namespace YStreamUtils.Core.Events;
 
 public class EventBus(ILogger<EventBus> logger) : IEventBus
 {
-    private readonly ConcurrentDictionary<EventKey, List<Func<object, CancellationToken, Task>>> _handlers = new();
+    private readonly ConcurrentDictionary<string, List<Func<object, CancellationToken, Task>>> _handlers = new();
     
     private readonly List<Func<object, CancellationToken, Task>> _superHandlers = [];
     private readonly Lock _superHandlersLock = new();
 
     private readonly ConcurrentDictionary<Delegate, Func<object, CancellationToken, Task>> _genericWrapperMap = new();
 
-    public Action Subscribe(EventKey eventKey, Func<object, CancellationToken, Task> handler)
+    public Action Subscribe(string eventKey, Func<object, CancellationToken, Task> handler)
     {
         if (eventKey == EventKey.All)
         {
@@ -45,7 +45,7 @@ public class EventBus(ILogger<EventBus> logger) : IEventBus
         };
     }
 
-    public Action Subscribe<T>(EventKey eventKey, Func<T, CancellationToken, Task> handler)
+    public Action Subscribe<T>(string eventKey, Func<T, CancellationToken, Task> handler)
     {
         Func<object, CancellationToken, Task> wrappedHandler = (payload, token) => handler((T)payload, token);
         _genericWrapperMap[handler] = wrappedHandler;
@@ -59,7 +59,7 @@ public class EventBus(ILogger<EventBus> logger) : IEventBus
         };
     }
 
-    public async Task PublishAsync(EventKey eventKey, object? payload, CancellationToken cancellationToken = default)
+    public async Task PublishAsync(string eventKey, object? payload, CancellationToken cancellationToken = default)
     {
         var fallbackPayload = payload ?? new EmptyStruct();
         List<Task> tasksToAwait = [];

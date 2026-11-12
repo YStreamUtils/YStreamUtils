@@ -27,7 +27,7 @@
 }
 
 @code {
-    [Parameter, EditorRequired] public EventKey EventKey { get; set; } = EventKey.All;
+    [Parameter, EditorRequired] public string SelectedEventKey { get; set; } = EventKey.All;
     [Parameter, EditorRequired] public RenderFragment<TEventType> ItemTemplate { get; set; } = null!;
     [Parameter] public int? MaxBufferLimit { get; set; } = 500;
     [Parameter] public string MaxHeight { get; set; } = "400px";
@@ -42,7 +42,7 @@
 
     protected override void OnInitialized()
     {
-        _unsubscribe = EventBus.Subscribe<TEventType>(EventKey, (evt, _) =>
+        _unsubscribe = EventBus.Subscribe<TEventType>(SelectedEventKey, (evt, _) =>
         {
             _channel.Writer.TryWrite(evt);
             return Task.CompletedTask;
