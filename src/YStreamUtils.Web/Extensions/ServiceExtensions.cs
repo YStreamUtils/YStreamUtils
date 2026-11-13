@@ -32,12 +32,17 @@ public static class ServiceExtensions
         var serviceCollection = builder.Services;
         serviceCollection.AddHttpClient();
         
-        builder.Services.AddDbContextFactory<SqliteDbContext>();
+        builder.Services.AddDbContextFactory<AppDbContext>(options =>
+        {
+            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+            var dbPath = Path.Combine(Consts.ApplicationDataFolder, "ystreamutils.db");
+            Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
 
-        builder.Services.AddSingleton<IDbContextFactory<AppDbContext>>(sp =>
-            new DbContextFactoryBridge<SqliteDbContext>(
-                sp.GetRequiredService<IDbContextFactory<SqliteDbContext>>()));
-
+            options.UseSqlite(
+                connectionString ?? $"Data Source={dbPath}",
+                x => x.MigrationsAssembly("YStreamUtils.Core")
+            );
+        });
 
         serviceCollection.AddSingleton<IEventBus, EventBus>();
         serviceCollection.AddSingleton<PluginService>();

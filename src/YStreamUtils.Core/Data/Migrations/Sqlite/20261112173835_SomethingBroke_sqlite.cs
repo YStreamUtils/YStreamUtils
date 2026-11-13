@@ -5,7 +5,7 @@
 namespace YStreamUtils.Core.Data.Migrations.Sqlite
 {
     /// <inheritdoc />
-    public partial class Initial_sqlite : Migration
+    public partial class SomethingBroke_sqlite : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -50,11 +50,23 @@ namespace YStreamUtils.Core.Data.Migrations.Sqlite
                 });
 
             migrationBuilder.CreateTable(
+                name: "PluginSettings",
+                columns: table => new
+                {
+                    PluginName = table.Column<string>(type: "TEXT", nullable: false),
+                    SettingsJson = table.Column<string>(type: "TEXT", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PluginSettings", x => x.PluginName);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "UserScripts",
                 columns: table => new
                 {
                     ScriptId = table.Column<string>(type: "TEXT", nullable: false),
-                    Topic = table.Column<int>(type: "INTEGER", nullable: false),
+                    Topic = table.Column<string>(type: "TEXT", nullable: false),
                     Source = table.Column<string>(type: "TEXT", nullable: false),
                     IsEnabled = table.Column<bool>(type: "INTEGER", nullable: false)
                 },
@@ -75,6 +87,9 @@ namespace YStreamUtils.Core.Data.Migrations.Sqlite
 
             migrationBuilder.DropTable(
                 name: "OAuthTokens");
+
+            migrationBuilder.DropTable(
+                name: "PluginSettings");
 
             migrationBuilder.DropTable(
                 name: "UserScripts");

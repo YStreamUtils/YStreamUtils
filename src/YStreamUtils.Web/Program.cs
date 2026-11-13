@@ -107,7 +107,8 @@ Task.Run(async () =>
     }
 });
 
-
+var pluginService = app.Services.GetRequiredService<PluginService>();
+await pluginService.ReloadLocalPluginsAsync();
 app.MapFallbackToFile("index.html");
 
 await app.RunAsync();

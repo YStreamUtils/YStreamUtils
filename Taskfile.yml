@@ -16,7 +16,7 @@ tasks:
       EF_PROVIDER: "sqlite"
     cmds:
       - echo "Generating SQLite migration '{{.RESOLVED_NAME}}_sqlite'..."
-      - dotnet ef migrations add {{.RESOLVED_NAME}}_sqlite --project {{.CORE_PROJECT}} --startup-project {{.WEB_PROJECT}} --context SqliteDbContext --output-dir Core/Data/Migrations/Sqlite
+      - dotnet ef migrations add {{.RESOLVED_NAME}}_sqlite --project {{.CORE_PROJECT}} --startup-project {{.WEB_PROJECT}} --context SqliteDbContext --output-dir Data/Migrations/Sqlite
 
   codegen:frontend:
     desc: "Generates type-safe Svelte TypeScript API clients automatically based on the Web project schema"

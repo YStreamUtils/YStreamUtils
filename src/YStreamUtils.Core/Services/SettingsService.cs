@@ -20,7 +20,7 @@ public class SettingsService
         },
         PluginSettings = new PluginSettings
         {
-            Repositories = ["https://ystreamutils.github.io/YStreamUtils.Core-Plugin-Registry/registry.json"]
+            Repositories = ["https://ystreamutils.github.io/YStreamUtils-Plugin-Registry/registry.json"]
         }
     };
 

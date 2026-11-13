@@ -4,7 +4,7 @@ using System.Runtime.Loader;
 namespace YStreamUtils.Core.Models;
 
 internal sealed class PluginLoadContext(string name, string pluginPath)
-    : AssemblyLoadContext($"ALC_{name}", isCollectible: false)
+    : AssemblyLoadContext($"ALC_{name}", isCollectible: true)
 {
     private static readonly HashSet<string> HostAssemblyNames = Default.Assemblies
         .Select(a => a.GetName().Name!)

@@ -11,7 +11,7 @@ public static class Consts
         : LocalDataFolder;
 
     private static string LocalDataFolder =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YStreamUtils.Core");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YStreamUtils");
 
     private static string DockerDataFolder => Environment.GetEnvironmentVariable("DATA_FOLDER") ?? "/data";
     public static readonly IEnumerable<string> YoutubeScopes = [YouTubeService.Scope.YoutubeForceSsl];

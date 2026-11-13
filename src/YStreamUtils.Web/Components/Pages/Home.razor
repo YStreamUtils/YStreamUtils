@@ -1,9 +1,11 @@
 ﻿@page "/"
 @using YStreamUtils.Core.Events
 @using YStreamUtils.Core.Services
+@using YStreamUtils.SDK.Plugin
 @using YStreamUtils.Web.Components.Shared
 @inject ScriptsService ScriptService
 @inject IEventBus EventBus
+@inject PluginService PluginService
 @rendermode InteractiveServer
 
 <PageTitle>Home</PageTitle>
@@ -35,10 +37,33 @@
 
 <CodeEditor @ref="_editor" ScriptEventKey="@_currentKey" />
 
+@foreach (var plugin in _plugins)
+{
+  var installed = IsPluginInstalled(plugin.Name);
+  <div>
+    <h2>@plugin.Name</h2>
+    <p>@plugin.Version</p>
+    <button 
+      @onclick="async () => await PluginService.DownloadAndInstallPluginAsync(plugin)"
+      disabled="@installed">@(installed? "Installed": "Install")</button>
+  </div>
+}
+
+@string.Join(",", PluginService.GetActivePlugins().Keys)
+
 @code {
   private string _scriptName = "test_script";
   private string _currentKey = EventKey.StreamChatMessage;
   private CodeEditor _editor = null!;
+
+  private List<PluginManifest> _plugins = [];
+
+  private bool IsPluginInstalled(string name) => PluginService.GetActivePlugins().ContainsKey(name);
+
+  protected override async Task OnInitializedAsync()
+  {
+    _plugins = await PluginService.FetchAllRegistryPluginsAsync();
+  }
 
   private async Task SaveAndDeployScript()
   {

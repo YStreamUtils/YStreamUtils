@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Json;
+﻿using System.IO.Compression;
+using System.Net.Http.Json;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text;
@@ -14,6 +15,7 @@ using YStreamUtils.Core.Data;
 using YStreamUtils.Core.Models;
 using YStreamUtils.SDK.Plugin;
 using YStreamUtils.SDK.Registry;
+using PluginSettings = YStreamUtils.Core.Entities.PluginSettings;
 
 namespace YStreamUtils.Core.Services;
 
@@ -45,15 +47,14 @@ public class PluginService
         _contextFactory = contextFactory;
         _settingsService = settingsService;
         _hostProvider = hostProvider;
-        
+
         AssemblyLoadContext.Default.Resolving += (_, assemblyName) =>
         {
             return _pluginContexts
                 .SelectMany(ctx => ctx.Assemblies)
-                .FirstOrDefault(a => string.Equals(a.GetName().Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(a =>
+                    string.Equals(a.GetName().Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase));
         };
-
-        _ = ReloadLocalPluginsAsync();
     }
 
 
@@ -61,7 +62,7 @@ public class PluginService
     {
         var version = manifest.Version.StartsWith('v') ? manifest.Version : "v" + manifest.Version;
         var downloadUrl =
-            $"https://github.com/{manifest.Source.Owner}/{manifest.Source.Repository}/releases/download/{version}/{manifest.Name}.dll";
+            $"https://github.com/{manifest.Source.Owner}/{manifest.Source.Repository}/releases/download/{version}/{manifest.Name}.zip";
 
         _logger.LogInformation("Streaming raw plugin binary file target asset: {Url}", downloadUrl);
 
@@ -74,13 +75,9 @@ public class PluginService
         var targetDir = Path.Combine(_pluginDir, manifest.Name);
         Directory.CreateDirectory(targetDir);
 
-        var dllFilePath = Path.Combine(targetDir, $"{manifest.Name}.dll");
-
-        await using (var byteStream = await response.Content.ReadAsStreamAsync())
-        await using (var fileStream = new FileStream(dllFilePath, FileMode.Create, FileAccess.Write, FileShare.None,
-                         4096, useAsync: true))
+        await using (var zipStream = await response.Content.ReadAsStreamAsync())
         {
-            await byteStream.CopyToAsync(fileStream);
+            await ZipFile.ExtractToDirectoryAsync(zipStream, targetDir, overwriteFiles: true);
         }
 
         var manifestPath = Path.Combine(targetDir, "manifest.json");
@@ -90,118 +87,151 @@ public class PluginService
         await ReloadLocalPluginsAsync();
     }
 
-public async Task ReloadLocalPluginsAsync()
-{
-    await _lock.WaitAsync();
-    try
+    public async Task ReloadLocalPluginsAsync()
     {
-        _logger.LogInformation("Before Lock 2");
-        foreach (var oldContext in _pluginContexts)
+        await _lock.WaitAsync();
+        try
         {
-            oldContext.Unload();
-        }
-        _pluginContexts.Clear();
-        _loadedPlugins.Clear();
-
-        Directory.CreateDirectory(_pluginDir);
-        var directories = Directory.GetDirectories(_pluginDir);
-        var pluginServiceCollection = new ServiceCollection();
-
-        foreach (var folderPath in directories)
-        {
-            var folderName = Path.GetFileName(folderPath);
-            var sharedDllFileName = Path.GetFileName(typeof(PluginManifestAttribute).Assembly.Location);
-            var dllFiles = Directory.GetFiles(folderPath, "*.dll")
-                .Where(f => 
-                {
-                    var fileName = Path.GetFileName(f);
-                    return !fileName.Equals(sharedDllFileName, StringComparison.OrdinalIgnoreCase)
-                           && !fileName.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase)
-                           && !fileName.StartsWith("System.", StringComparison.OrdinalIgnoreCase);
-                })
-                .ToArray();
-            
-            if (dllFiles.Length == 0)
+            foreach (var oldContext in _pluginContexts)
             {
-                _logger.LogError("No files found for folder: {FolderPath}", folderPath);
-                continue;
+                oldContext.Unload();
             }
 
-            var expectedDll = Path.Combine(folderPath, $"{folderName}.dll");
-            var orderedDlls = File.Exists(expectedDll)
-                ? dllFiles.OrderByDescending(f => f.Equals(expectedDll, StringComparison.OrdinalIgnoreCase))
-                : dllFiles.AsEnumerable();
+            _pluginContexts.Clear();
+            _loadedPlugins.Clear();
 
-            PluginLoadContext? loadContext = null;
-            
-            try
+            Directory.CreateDirectory(_pluginDir);
+            var directories = Directory.GetDirectories(_pluginDir);
+            var pluginServiceCollection = new ServiceCollection();
+
+            foreach (var folderPath in directories)
             {
-                var enumerable = orderedDlls as string[] ?? [.. orderedDlls];
-                var primaryDll = enumerable.First();
-                _logger.LogInformation("Loading primary assembly for: {Name}", primaryDll);
-                loadContext = new PluginLoadContext(folderName, primaryDll);
+                var folderName = Path.GetFileName(folderPath);
+                var sharedDllFileName = Path.GetFileName(typeof(PluginManifestAttribute).Assembly.Location);
+                var dllFiles = Directory.GetFiles(folderPath, "*.dll")
+                    .Where(f =>
+                    {
+                        var fileName = Path.GetFileName(f);
+                        return !fileName.Equals(sharedDllFileName, StringComparison.OrdinalIgnoreCase)
+                               && !fileName.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase)
+                               && !fileName.StartsWith("System.", StringComparison.OrdinalIgnoreCase);
+                    })
+                    .ToArray();
 
-                Assembly? pluginAssembly = null;
-                PluginManifestAttribute? attr = null;
-                
-                
-                foreach (var dll in enumerable)
+                if (dllFiles.Length == 0)
                 {
-                    var candidate = loadContext.LoadFromAssemblyPath(Path.GetFullPath(dll));
-                    var candidateAttr = candidate.GetCustomAttribute<PluginManifestAttribute>();
-
-                    if (candidateAttr == null) continue;
-                    pluginAssembly = candidate;
-                    attr = candidateAttr;
-                    break;
+                    _logger.LogError("No files found for folder: {FolderPath}", folderPath);
+                    continue;
                 }
 
-                if (pluginAssembly == null || attr == null)
-                    throw new UnauthorizedAccessException($"No assembly in '{folderName}' has [assembly: PluginManifestAttribute].");
+                var expectedDll = Path.Combine(folderPath, $"{folderName}.dll");
+                var orderedDlls = File.Exists(expectedDll)
+                    ? dllFiles.OrderByDescending(f => f.Equals(expectedDll, StringComparison.OrdinalIgnoreCase))
+                    : dllFiles.AsEnumerable();
 
-                var manifest = attr.ToManifest();
+                PluginLoadContext? loadContext = null;
 
-                var schemaNode = attr.SettingsType is not null
-                    ? Consts.IndentedSerializerOptions.GetJsonSchemaAsNode(attr.SettingsType)
-                    : new JsonObject();
+                try
+                {
+                    var enumerable = orderedDlls as string[] ?? [.. orderedDlls];
+                    var primaryDll = enumerable.First();
+                    _logger.LogInformation("Loading primary assembly for: {Name}", primaryDll);
+                    loadContext = new PluginLoadContext(folderName, primaryDll);
 
-                var entrypointType = pluginAssembly.GetTypes()
-                    .FirstOrDefault(t => typeof(IPlugin).IsAssignableFrom(t) && t is { IsInterface: false, IsAbstract: false });
+                    Assembly? pluginAssembly = null;
+                    PluginManifestAttribute? attr = null;
+                    
+                    foreach (var dll in enumerable)
+                    {
+                        var candidate = loadContext.LoadFromAssemblyPath(Path.GetFullPath(dll));
+                        var candidateAttr = candidate.GetCustomAttribute<PluginManifestAttribute>();
 
-                if (entrypointType == null)
-                    throw new InvalidDataException($"Entrypoint class implementing IPlugin missing inside {manifest.Name}.dll");
-                
-                var genericLoggerType = typeof(Logger<>).MakeGenericType(entrypointType);
-                var pluginLogger = Activator.CreateInstance(genericLoggerType, _loggerFactory)!;
-                
-                var pluginInstance = (IPlugin)ActivatorUtilities.CreateInstance(_hostProvider, entrypointType, pluginLogger);
+                        if (candidateAttr == null) continue;
+                        pluginAssembly = candidate;
+                        attr = candidateAttr;
+                        break;
+                    }
 
-                pluginServiceCollection.AddSingleton(entrypointType, pluginInstance);
-                _loadedPlugins.Add(manifest.Name, new Plugin(entrypointType, manifest, schemaNode));
-                _pluginContexts.Add(loadContext);
+                    if (pluginAssembly == null || attr == null)
+                        throw new UnauthorizedAccessException(
+                            $"No assembly in '{folderName}' has [assembly: PluginManifestAttribute].");
 
-                _logger.LogInformation("Successfully instantiated Plugin: {Name}", manifest.Name);
+                    var manifest = attr.ToManifest();
+
+                    var schemaNode = attr.SettingsType is not null
+                        ? Consts.IndentedSerializerOptions.GetJsonSchemaAsNode(attr.SettingsType)
+                        : new JsonObject();
+
+                    var entrypointType = pluginAssembly.GetTypes()
+                        .FirstOrDefault(t =>
+                            typeof(IPlugin).IsAssignableFrom(t) && t is { IsInterface: false, IsAbstract: false });
+
+                    if (entrypointType == null)
+                        throw new InvalidDataException(
+                            $"Entrypoint class implementing IPlugin missing inside {manifest.Name}.dll");
+
+                    var genericLoggerType = typeof(Logger<>).MakeGenericType(entrypointType);
+                    var pluginLogger = Activator.CreateInstance(genericLoggerType, _loggerFactory)!;
+
+                    var pluginInstance =
+                        (IPlugin)ActivatorUtilities.CreateInstance(_hostProvider, entrypointType);
+                    
+                    _logger.LogInformation("Plugin {Plugin} instantiated, Initializing...", manifest.Name);
+                    await pluginInstance.InitializeAsync();
+
+                    var dbContext = await _contextFactory.CreateDbContextAsync();
+                    var existingSettings = await dbContext.PluginSettings.FirstOrDefaultAsync(ps =>
+                        ps.PluginName == manifest.Name);
+                    if (existingSettings is not null)
+                    {
+                        _logger.LogInformation("Existing settings found for {Plugin}, applying.", manifest.Name);
+                        _ = pluginInstance.SettingsUpdatedAsync(existingSettings.SettingsJson);
+                    }
+                    else
+                    {
+                        if (attr.SettingsType is not null)
+                        {
+                            _logger.LogInformation("No settings found for {Plugin}, creating from default", manifest.Name);
+                            var defaultSettings = Activator.CreateInstance(attr.SettingsType);
+                            var serialized =
+                                JsonSerializer.Serialize(defaultSettings, Consts.IndentedSerializerOptions);
+                            _ = pluginInstance.SettingsUpdatedAsync(serialized);
+                            dbContext.PluginSettings.Add(new PluginSettings
+                            {
+                                PluginName = manifest.Name,
+                                SettingsJson = serialized
+                            });
+                            await dbContext.SaveChangesAsync();
+                        }
+                    }
+
+
+                    pluginServiceCollection.AddSingleton(entrypointType, pluginInstance);
+                    _loadedPlugins.Add(manifest.Name, new Plugin(entrypointType, manifest, schemaNode));
+                    _pluginContexts.Add(loadContext);
+
+                    _logger.LogInformation("Successfully instantiated Plugin: {Name}", manifest.Name);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed execution configuration for folder: {Dir}", folderName);
+                    loadContext?.Unload();
+                }
             }
-            catch (Exception ex)
-            {
-                loadContext?.Unload();
-                _logger.LogError(ex, "Failed execution configuration for folder: {Dir}", folderName);
-            }
+
+            _activePlugins = pluginServiceCollection.BuildServiceProvider();
         }
-        
-        _activePlugins = pluginServiceCollection.BuildServiceProvider();
+        finally
+        {
+            _lock.Release();
+            var lsp = _hostProvider.GetRequiredService<RoslynLspProvider>();
+            lsp.InvalidateCache();
+        }
     }
-    finally
-    {
-        _lock.Release();
-        var lsp = _hostProvider.GetRequiredService<RoslynLspProvider>();
-        lsp.InvalidateCache();
-    }
-}
 
-public IServiceProvider GetPluginServiceProvider() => _activePlugins;
+    public IServiceProvider GetPluginServiceProvider() => _activePlugins;
 
-public Dictionary<string, Plugin> GetActivePlugins()
+    public Dictionary<string, Plugin> GetActivePlugins()
     {
         _lock.Wait();
         try
@@ -213,7 +243,7 @@ public Dictionary<string, Plugin> GetActivePlugins()
             _lock.Release();
         }
     }
-    
+
     public string GetSettingsForPlugin(string name)
     {
         _loadedPlugins.TryGetValue(name, out var plugin);
@@ -221,9 +251,9 @@ public Dictionary<string, Plugin> GetActivePlugins()
         {
             throw new KeyNotFoundException($"Plugin {name} not found");
         }
-        
+
         using var dbContext = _contextFactory.CreateDbContext();
-        
+
         var pluginSettings = dbContext.PluginSettings.FirstOrDefault(x => x.PluginName == plugin.Manifest.Name);
         return pluginSettings?.SettingsJson ?? "{}";
     }
@@ -231,8 +261,8 @@ public Dictionary<string, Plugin> GetActivePlugins()
     public string GetSettingsSchemaForPlugin(string name)
     {
         _loadedPlugins.TryGetValue(name, out var plugin);
-        return plugin is null 
-            ? throw new KeyNotFoundException($"Plugin {name} not found") 
+        return plugin is null
+            ? throw new KeyNotFoundException($"Plugin {name} not found")
             : plugin.PluginSettingsSchema.ToJsonString();
     }
 

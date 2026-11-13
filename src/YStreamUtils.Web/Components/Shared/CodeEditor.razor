@@ -76,6 +76,7 @@
         List<string> defaultText =
         [
             $"// The globals are: {string.Join(", ", properties)}",
+            "// You can also use GetPlugin<TPlugin>() or GetPlugin(Type type)",
             "List<string> test = [\"Hello\", \"World!\"];",
             "Logger.LogInformation(string.Join(\" \", test));"
         ];

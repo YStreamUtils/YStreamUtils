@@ -32,9 +32,9 @@
         <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.12" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
         <PackageReference Include="Reinforced.Typings" Version="1.6.7" />
-        <PackageReference Include="YScriptEngine.Lsp.Roslyn" Version="1.1.4-alpha" />
-        <PackageReference Include="YScriptEngine.Roslyn" Version="1.1.5-alpha" />
-        <PackageReference Include="YStreamUtils.SDK" Version="1.0.2-alpha" />
+        <PackageReference Include="YScriptEngine.Lsp.Roslyn" Version="1.1.5-alpha" />
+        <PackageReference Include="YScriptEngine.Roslyn" Version="1.1.8-alpha" />
+        <PackageReference Include="YStreamUtils.SDK" Version="1.1.1-alpha" />
     </ItemGroup>
 
     <ItemGroup>
@@ -43,6 +43,10 @@
 
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Data\Migrations\" />
     </ItemGroup>
 
     <PropertyGroup Condition="'$(Configuration)' == 'Release'">

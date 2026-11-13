@@ -2,13 +2,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using YStreamUtils.Core.Data;
 using YStreamUtils.Core.Entities;
-using YStreamUtils.Core.Events;
 
 namespace YStreamUtils.Core.Data;
 
-public abstract class AppDbContext(
+public class AppDbContext(
     DbContextOptions options, 
     IConfiguration configuration,
     IDataProtectionProvider? provider = null,

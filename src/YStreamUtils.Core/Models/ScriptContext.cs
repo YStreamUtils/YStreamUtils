@@ -17,6 +17,8 @@ public class ScriptContext<T>(
     public T EventData { get; init; } = eventData;
 
     public IServiceProvider Plugins { get; init; } = plugins;
+    public TPlugin GetPlugin<TPlugin>() where TPlugin : notnull => Plugins.GetRequiredService<TPlugin>();
+    public object GetPlugin(Type type) => Plugins.GetRequiredService(type);
     
     public IServiceProvider Services { get; init; } = services;
     public ILogger Logger => Services.GetRequiredService<ILoggerFactory>().CreateLogger(scriptName);
