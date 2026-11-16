@@ -1,11 +1,8 @@
-﻿@using System.Reflection
-@using BlazorMonaco
+﻿@using BlazorMonaco
 @using BlazorMonaco.Editor
 @using BlazorMonaco.Languages
 @using System.Text.Json
 @using YScriptEngine.Lsp.Roslyn
-@using YStreamUtils.Core.Events
-@using YStreamUtils.Core.Models
 @implements IDisposable
 @inject IJSRuntime JsRuntime
 @inject RoslynLspProvider LspProvider
@@ -19,13 +16,6 @@
                           OnDidChangeModelContent="OnCodeChanged"
                           CssClass="full"/>
 </div>
-
-<style>
-    .full {
-        width: 100%;
-        height: 100%;
-    }
-</style>
 
 <script type="module">
     import {createHighlighter} from "https://esm.sh/shiki";
@@ -47,52 +37,53 @@
     };
 </script>
 
+<style>
+    .full {
+        width: 100%;
+        height: 100%;
+    }
+</style>
+
 @code {
-    private StandaloneCodeEditor _editor = null!;
+    private StandaloneCodeEditor? _editor;
     private CancellationTokenSource? _completionCts;
     private Timer? _debounceTimer;
     private bool _isInitialized;
 
-    [Parameter] public string ScriptEventKey { get; set; } = EventKey.All;
+    [Parameter, EditorRequired] public Type ContextType { get; set; } = typeof(object);
 
-    private Type ActivePayloadType =>  typeof(ScriptContext<>).MakeGenericType(Events.KnownTypeRegistry[ScriptEventKey]);
-
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+    
     public async Task<string> GetValueAsync()
     {
-        var model = await _editor.GetModel();
-        if(model is null) return string.Empty;
+        var model = await _editor?.GetModel()! ?? new TextModel();
         return await model.GetValue(EndOfLinePreference.TextDefined, false);
     }
-    
+
     private StandaloneEditorConstructionOptions EditorConstructionOptions(StandaloneCodeEditor editor)
     {
-        var methods = ActivePayloadType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
-            .Where(method => !method.IsSpecialName && method.DeclaringType != typeof(object))
-            .Select(info => info.Name);
-
-        var properties = ActivePayloadType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Select(info => info.Name);
-
-        List<string> defaultText =
-        [
-            $"// The globals are: {string.Join(", ", properties)}",
-            "// You can also use GetPlugin<TPlugin>() or GetPlugin(Type type)",
-            "List<string> test = [\"Hello\", \"World!\"];",
-            "Logger.LogInformation(string.Join(\" \", test));"
-        ];
         return new StandaloneEditorConstructionOptions
         {
             AutomaticLayout = true,
             Language = "csharp",
-            Value = string.Join("\n", defaultText),
+            Value = Value,
             Theme = "dark-plus",
             FormatOnType = true,
             FormatOnPaste = true,
             SemanticHighlightingEnabled = true
         };
     }
+    
+    
 
     private async Task OnEditorInitialized()
+    {
+        await InitializeEditorFeatures();
+        await RunDiagnosticsAsync();
+    }
+
+    private async Task InitializeEditorFeatures()
     {
         var selector = new LanguageSelector("csharp");
 
@@ -105,14 +96,13 @@
 
                 try
                 {
-                    var model = await _editor.GetModel();
+                    var model = await _editor?.GetModel()!;
                     if (model == null) return new CompletionList { Suggestions = [] };
 
                     var cursorOffset = await model.GetOffsetAt(position);
                     var currentCode = await model.GetValue(EndOfLinePreference.TextDefined, preserveBOM: false);
-                    
 
-                    var roslynItems = await LspProvider.GetCompletionsAsync(currentCode, cursorOffset, ActivePayloadType, _completionCts.Token);
+                    var roslynItems = await LspProvider.GetCompletionsAsync(currentCode, cursorOffset, ContextType, _completionCts.Token);
 
                     var wordInfo = await model.GetWordUntilPosition(position);
                     var replaceRange = new BlazorMonaco.Range(position.LineNumber, wordInfo.StartColumn, position.LineNumber, wordInfo.EndColumn);
@@ -149,11 +139,11 @@
             displayName: "Roslyn C# Formatter",
             provideDocumentFormattingEditsDelegate: async (_, _) =>
             {
-                var model = await _editor.GetModel();
+                var model = await _editor?.GetModel()!;
                 if (model == null) return [];
 
                 var currentCode = await model.GetValue(EndOfLinePreference.TextDefined, preserveBOM: false);
-                var formattedCode = await LspProvider.FormatCodeAsync(currentCode, ActivePayloadType, CancellationToken.None);
+                var formattedCode = await LspProvider.FormatCodeAsync(currentCode, ContextType, CancellationToken.None);
                 var fullRange = await model.GetFullModelRange();
 
                 return
@@ -169,13 +159,13 @@
 
         var hoverProvider = new HoverProvider(async (_, position, _) =>
         {
-            var model = await _editor.GetModel();
+            var model = await _editor?.GetModel()!;
             if (model == null) return new Hover();
 
             var cursorOffset = await model.GetOffsetAt(position);
             var currentCode = await model.GetValue(EndOfLinePreference.TextDefined, false);
 
-            var hoverText = await LspProvider.GetHoverInfoAsync(currentCode, cursorOffset, ActivePayloadType, CancellationToken.None);
+            var hoverText = await LspProvider.GetHoverInfoAsync(currentCode, cursorOffset, ContextType, CancellationToken.None);
             if (string.IsNullOrEmpty(hoverText)) return new Hover();
 
             var wordInfo = await model.GetWordUntilPosition(position);
@@ -195,11 +185,10 @@
         });
 
         await BlazorMonaco.Languages.Global.RegisterHoverProviderAsync(JsRuntime, selector, hoverProvider);
-        
-        var codeActionProvider = new CodeActionProvider(
-            async (modelUri, range, _) =>
+
+        var codeActionProvider = new CodeActionProvider(async (modelUri, range, _) =>
             {
-                var model = await _editor.GetModel();
+                var model = await _editor?.GetModel()!;
                 if (model == null) return new CodeActionList { Actions = [] };
 
                 var startOffset = await model.GetOffsetAt(new Position
@@ -215,7 +204,7 @@
 
                 var currentCode = await model.GetValue(EndOfLinePreference.TextDefined, preserveBOM: false);
                 var quickActions = await LspProvider.GetQuickActionsAsync(
-                    currentCode, startOffset, endOffset, ActivePayloadType, CancellationToken.None);
+                    currentCode, startOffset, endOffset, ContextType, CancellationToken.None);
 
                 var actions = quickActions.Select(qa => new CodeAction
                 {
@@ -264,39 +253,58 @@
         if (_isInitialized)
         {
             await RunDiagnosticsAsync();
+            if (Value != null)
+            {
+                var model = await _editor?.GetModel()!;
+                if (model != null)
+                {
+                    var currentText = await model.GetValue(EndOfLinePreference.TextDefined, false);
+                    if (currentText != Value)
+                    {
+                        await model.SetValue(Value);
+                    }
+                }
+            }
         }
     }
+
 
     private void OnCodeChanged(ModelContentChangedEvent e)
     {
         _debounceTimer?.Dispose();
-        _debounceTimer = new Timer(DebounceTimerCallback, null, 400, Timeout.Infinite);
+        _debounceTimer = new Timer(DebounceTimerHandler, null, TimeSpan.FromMilliseconds(400), Timeout.InfiniteTimeSpan);
     }
-
-    private void DebounceTimerCallback(object? state)
+    private async void DebounceTimerHandler(object? state)
     {
-        _ = Task.Run(async () =>
+        try
         {
-            try
+            await InvokeAsync(async () =>
             {
-                await InvokeAsync(async () => await RunDiagnosticsAsync());
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError($"Diagnostics background error: {ex.Message}");
-            }
-        });
+                await RunDiagnosticsAsync();
+                var currentText = await GetValueAsync();
+                await ValueChanged.InvokeAsync(currentText);
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Diagnostics background error: {ex.Message}");
+        }
     }
 
     private async Task RunDiagnosticsAsync()
     {
-        if (!_isInitialized) return;
+        if (!_isInitialized || _editor == null) return;
 
         var model = await _editor.GetModel();
         if (model == null) return;
 
-        var currentCode = await model.GetValue(EndOfLinePreference.TextDefined, preserveBOM: false);
-        var diagnostics = await LspProvider.GetDiagnosticsAsync(currentCode, ActivePayloadType, CancellationToken.None);
+        await RunDiagnostics(model);
+    }
+
+    private async Task RunDiagnostics(TextModel model)
+    {
+        var currentCode = await model.GetValue(EndOfLinePreference.TextDefined, false);
+        var diagnostics = await LspProvider.GetDiagnosticsAsync(currentCode, ContextType, CancellationToken.None);
 
         var markers = new List<MarkerData>();
         foreach (var diag in diagnostics)
@@ -306,8 +314,8 @@
 
             markers.Add(new MarkerData
             {
-                Code = string.IsNullOrEmpty(diag.Code) 
-                    ? null 
+                Code = string.IsNullOrEmpty(diag.Code)
+                    ? null
                     : JsonSerializer.SerializeToElement(diag.Code),
                 Severity = diag.Severity.ToLower() == "error" ? MarkerSeverity.Error : MarkerSeverity.Warning,
                 Message = diag.Message,
@@ -321,7 +329,7 @@
         await BlazorMonaco.Editor.Global.SetModelMarkers(JsRuntime, model, "roslyn-diagnostics", markers);
     }
 
-    private CompletionItemKind MapRoslynTagToMonacoKind(string tag)
+    private static CompletionItemKind MapRoslynTagToMonacoKind(string tag)
     {
         return tag.ToLower() switch
         {

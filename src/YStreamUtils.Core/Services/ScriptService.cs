@@ -1,8 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using YScriptEngine.Abstractions;
-using YScriptEngine.Lsp.Roslyn;
 using YScriptEngine.Roslyn;
 using YStreamUtils.Core.Data;
 using YStreamUtils.Core.Entities;
@@ -11,8 +9,8 @@ using YStreamUtils.Core.Models;
 
 namespace YStreamUtils.Core.Services;
 
-public partial class ScriptsService(
-    RoslynCompiler compiler,
+public class ScriptsService(
+    RoslynScriptCompiler compiler,
     ILogger<ScriptsService> logger,
     IEventBus eventBus,
     PluginService pluginService,
@@ -87,9 +85,7 @@ public partial class ScriptsService(
         }
     }
 
-    private static string Lower(string s) => char.ToLowerInvariant(s[0]) + s[1..];
-    
-    private static IScriptContext CreateTypedContext<TPayload>(
+    private static ScriptContext<TPayload> CreateTypedContext<TPayload>(
         TPayload payload,
         string scriptName,
         string eventName,
@@ -97,20 +93,5 @@ public partial class ScriptsService(
         IServiceProvider plugins)
     {
         return new ScriptContext<TPayload>(scriptName, eventName, payload, plugins, hostServices);
-    }
-
-    public async Task BuildProjectCaches()
-    {
-        var roslynLsp = serviceProvider.GetRequiredService<RoslynLspProvider>();
-        foreach (var (_, value) in Events.Events.KnownTypeRegistry)
-        {
-            var scriptContextGeneric = typeof(ScriptContext<>).MakeGenericType(value);
-            roslynLsp.PreCacheBaseSolution(scriptContextGeneric);
-        }
-    }
-
-    public async Task CreateScriptOptions()
-    {
-        
     }
 }

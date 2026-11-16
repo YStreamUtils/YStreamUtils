@@ -31,9 +31,11 @@
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
         <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.12" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+        <PackageReference Include="NAudio" Version="3.4.0-preview.1" />
         <PackageReference Include="Reinforced.Typings" Version="1.6.7" />
-        <PackageReference Include="YScriptEngine.Lsp.Roslyn" Version="1.1.5-alpha" />
-        <PackageReference Include="YScriptEngine.Roslyn" Version="1.1.8-alpha" />
+        <PackageReference Include="SoundFlow" Version="1.4.2" />
+        <PackageReference Include="YScriptEngine.Lsp.Roslyn" Version="1.1.7-alpha" />
+        <PackageReference Include="YScriptEngine.Roslyn" Version="1.1.12-alpha" />
         <PackageReference Include="YStreamUtils.SDK" Version="1.1.1-alpha" />
     </ItemGroup>
 

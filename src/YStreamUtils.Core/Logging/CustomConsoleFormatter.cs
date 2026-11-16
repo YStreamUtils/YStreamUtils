@@ -1,11 +1,14 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Console;
+using YStreamUtils.Core.Events;
 
 namespace YStreamUtils.Core.Logging;
 
-public class CustomConsoleFormatter() : ConsoleFormatter("HumanReadable")
+public class CustomConsoleFormatter(IServiceProvider serviceProvider) : ConsoleFormatter("HumanReadable")
 {
+    private readonly Lazy<IEventBus> _eventBus = new(serviceProvider.GetRequiredService<IEventBus>);
     private const string Reset = "\e[0m";
     private const string Gray = "\e[90m";
     private const string White = "\e[97m";
@@ -45,5 +48,7 @@ public class CustomConsoleFormatter() : ConsoleFormatter("HumanReadable")
         {
             textWriter.WriteLine($"{colorCode}{logEntry.Exception}{Reset}");
         }
+        
+        _ = _eventBus.Value.PublishAsync(EventKey.ApplicationLog, $"[{timestamp}][{levelText}][{shortCategory}] {message}");
     }
 }

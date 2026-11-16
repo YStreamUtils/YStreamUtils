@@ -1,10 +1,12 @@
-using System.Reflection;
+using System.Runtime.Loader;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Scripting;
-using Microsoft.Extensions.FileProviders;
+using Microsoft.EntityFrameworkCore;
 using YScriptEngine.Lsp.Roslyn;
 using YScriptEngine.Roslyn;
+using YStreamUtils.Core.Data;
 using YStreamUtils.Core.Events;
+using YStreamUtils.Core.Models;
 using YStreamUtils.Core.Services;
 using YStreamUtils.Web.Components;
 using YStreamUtils.Web.Extensions;
@@ -17,74 +19,59 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(options => { options.DetailedErrors = true; });
 
 builder.Services.AddSingleton<RoslynLspProvider>();
-builder.Services.AddSingleton<RoslynCompiler>();
+builder.Services.AddSingleton<RoslynScriptCompiler>();
 
-var baseScriptOptions = new Lazy<ScriptOptions>(() =>
-{
-    var coreAssemblyLocation = typeof(object).Assembly.Location;
-    var runtimeDirectory = Path.GetDirectoryName(coreAssemblyLocation)!;
+builder.Services.AddSingleton<AudioPlaybackService>();
+builder.Services.AddHostedService<AudioPlaybackService>(sp => sp.GetRequiredService<AudioPlaybackService>());
 
-    var coreAssemblies = new MetadataReference[]
-    {
-        MetadataReference.CreateFromFile(coreAssemblyLocation),
-        MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
-        MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
-        MetadataReference.CreateFromFile(typeof(List<>).Assembly.Location),
-        MetadataReference.CreateFromFile(typeof(System.Text.Json.JsonSerializer).Assembly.Location),
-        MetadataReference.CreateFromFile(typeof(System.Text.RegularExpressions.Regex).Assembly.Location),
-        MetadataReference.CreateFromFile(typeof(ServiceProvider).Assembly.Location),
-        MetadataReference.CreateFromFile(Path.Combine(runtimeDirectory, "System.Runtime.dll")),
-        MetadataReference.CreateFromFile(Path.Combine(runtimeDirectory, "System.Collections.dll")),
-        MetadataReference.CreateFromFile(Path.Combine(runtimeDirectory, "System.Threading.Tasks.dll")),
-        MetadataReference.CreateFromFile(Assembly.GetEntryAssembly()!.Location)
-    };
-
-    var appDomainAssemblies = AppDomain.CurrentDomain.GetAssemblies()
-        .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
-        .Select(MetadataReference (a) => MetadataReference.CreateFromFile(a.Location));
-
-    var baseReferences = coreAssemblies
-        .Concat(appDomainAssemblies)
-        .GroupBy(r => r is PortableExecutableReference pe ? pe.FilePath : r.ToString())
-        .Select(g => g.First());
-
-    string[] globalImports =
-    [
-        "System", "System.IO", "System.Text", "System.Text.Json",
-        "System.Text.RegularExpressions", "System.Linq",
-        "System.Collections.Generic", "System.Threading.Tasks",
-        "Microsoft.Extensions.DependencyInjection", "Microsoft.Extensions.Logging"
-    ];
-
-    return ScriptOptions.Default
-        .WithReferences(baseReferences)
-        .WithImports(globalImports);
-});
+builder.Services.AddSingleton<UserLibraryService>();
 
 builder.Services.AddTransient<ScriptOptions>(sp =>
 {
+    var options = Consts.DefaultScriptOptions.Value;
+
     var pluginService = sp.GetRequiredService<PluginService>();
     var activePlugins = pluginService.GetActivePlugins();
-    if (activePlugins.Count == 0) return baseScriptOptions.Value;
+    if (activePlugins.Count > 0)
+    {
+        var pluginAssemblies = activePlugins.Values
+            .Select(p => p.PluginType.Assembly)
+            .Distinct()
+            .ToArray();
 
-    var pluginAssemblies = activePlugins.Values
-        .Select(p => p.PluginType.Assembly)
-        .Distinct()
-        .ToArray();
+        var allPluginContextAssemblies = pluginAssemblies
+            .Select(AssemblyLoadContext.GetLoadContext)
+            .Where(alc => alc != null && alc != AssemblyLoadContext.Default)
+            .Distinct()
+            .SelectMany(alc => alc!.Assemblies)
+            .Concat(pluginAssemblies)
+            .Where(ass => !ass.IsDynamic && !string.IsNullOrEmpty(ass.Location))
+            .DistinctBy(ass => ass.Location)
+            .ToArray();
 
-    var pluginReferences = pluginAssemblies
-        .Where(ass => !ass.IsDynamic && !string.IsNullOrEmpty(ass.Location))
-        .Select(ass => MetadataReference.CreateFromFile(ass.Location));
+        var pluginReferences = allPluginContextAssemblies
+            .Select(ass => MetadataReference.CreateFromFile(ass.Location));
 
-    var pluginImports = pluginAssemblies
-        .SelectMany(ass => ass.ExportedTypes)
-        .Select(t => t.Namespace)
-        .Where(ns => !string.IsNullOrEmpty(ns))
-        .Distinct();
+        var pluginImports = allPluginContextAssemblies
+            .SelectMany(ass => ass.ExportedTypes)
+            .Select(t => t.Namespace)
+            .Where(ns => !string.IsNullOrEmpty(ns))
+            .Distinct();
 
-    return baseScriptOptions.Value
-        .AddReferences(pluginReferences)
-        .AddImports(pluginImports!);
+        options = options
+            .AddReferences(pluginReferences)
+            .AddImports(pluginImports!);
+    }
+
+    var userLibrary = sp.GetRequiredService<UserLibraryService>();
+    if (userLibrary.CurrentReference is not null)
+    {
+        options = options
+            .AddReferences(userLibrary.CurrentReference)
+            .AddImports("UserLibrary");
+    }
+
+    return options;
 });
 
 var app = builder.Build();
@@ -97,18 +84,42 @@ app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.UseStaticFiles();
 
 var eventBus = app.Services.GetRequiredService<IEventBus>();
-Task.Run(async () =>
-{
-    var tracker = 0;
-    while (true)
-    {
-        await Task.Delay(2000);
-        await eventBus.PublishAsync(EventKey.ApplicationLog, $"Started: {tracker++}");
-    }
-});
 
 var pluginService = app.Services.GetRequiredService<PluginService>();
 await pluginService.ReloadLocalPluginsAsync();
+
+var userLibrary = app.Services.GetRequiredService<UserLibraryService>();
+var scriptService = app.Services.GetRequiredService<ScriptsService>();
+var dbContextFactory = app.Services.GetRequiredService<IDbContextFactory<AppDbContext>>();
+
+async Task RegisterLibrary()
+{
+    await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+    var library = await dbContext.UserScripts.AsNoTracking().FirstOrDefaultAsync(s => s.ScriptId == "UserLibrary");
+    if (library is not null)
+    {
+        await userLibrary.CompileAndSave(library.Source);
+    }
+}
+
+async Task RegisterScripts()
+{
+    await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+    var scripts = await dbContext.UserScripts.AsNoTracking().Where(s => s.ScriptId != "UserLibrary").ToListAsync();
+    var tasks = scripts.Select(s => scriptService.RegisterScriptAndBindToBusAsync(s.Topic, s.ScriptId, s.Source));
+    await Task.WhenAll(tasks);
+}
+
+await RegisterLibrary();
+await RegisterScripts();
+
+eventBus.Subscribe<EmptyStruct>(EventKey.LibraryChanged, async (_, _) => await RegisterScripts());
+eventBus.Subscribe<EmptyStruct>(EventKey.PluginsChanged, async (_, _) =>
+{
+    await RegisterLibrary();
+    await RegisterScripts();
+});
+
 app.MapFallbackToFile("index.html");
 
 await app.RunAsync();

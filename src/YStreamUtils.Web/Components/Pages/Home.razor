@@ -1,11 +1,17 @@
 ﻿@page "/"
+@using System.Reflection
+@using Microsoft.EntityFrameworkCore
+@using YStreamUtils.Core.Data
+@using YStreamUtils.Core.Entities
 @using YStreamUtils.Core.Events
+@using YStreamUtils.Core.Models
 @using YStreamUtils.Core.Services
 @using YStreamUtils.SDK.Plugin
 @using YStreamUtils.Web.Components.Shared
 @inject ScriptsService ScriptService
 @inject IEventBus EventBus
 @inject PluginService PluginService
+@inject IDbContextFactory<AppDbContext> ContextFactory
 @rendermode InteractiveServer
 
 <PageTitle>Home</PageTitle>
@@ -14,61 +20,136 @@
 
 <p>Welcome to your new app.</p>
 
-<StreamRender TEventType="string" SelectedEventKey="@EventKey.ApplicationLog" 
-              MaxBufferLimit="1000" 
+<StreamRender TEventType="string" SelectedEventKey="@EventKey.ApplicationLog"
+              MaxBufferLimit="1000"
               MaxHeight="400px">
   <ItemTemplate Context="log">
-    <div class="log-item-row" style=" height: 30px;">
+    <div class="log-item-row" style="height: 30px;">
       <span>@log.ToString()</span>
     </div>
   </ItemTemplate>
 </StreamRender>
 
-<select @bind="_currentKey" class="form-select">
+<select @bind="CurrentScript.Topic" class="form-select">
   @foreach (var eventKey in EventKey.KnownKeys)
   {
     <option value="@eventKey">@eventKey</option>
   }
 </select>
 
-<input type="text" @bind="@_scriptName"/>
+<input type="text" @bind="EditableScriptId" />
 <button @onclick="SaveAndDeployScript">Save Script</button>
 <button @onclick="SendManualEvent">Test Manual</button>
 
-<CodeEditor @ref="_editor" ScriptEventKey="@_currentKey" />
+<select @bind="_currentScriptName" class="form-select">
+  @foreach (var script in _scripts)
+  {
+    <option value="@script.ScriptId">@script.ScriptId</option>
+  }
+</select>
 
-@foreach (var plugin in _plugins)
-{
-  var installed = IsPluginInstalled(plugin.Name);
-  <div>
-    <h2>@plugin.Name</h2>
-    <p>@plugin.Version</p>
-    <button 
-      @onclick="async () => await PluginService.DownloadAndInstallPluginAsync(plugin)"
-      disabled="@installed">@(installed? "Installed": "Install")</button>
-  </div>
-}
+<button @onclick="AddNewScript">New Script</button>
 
-@string.Join(",", PluginService.GetActivePlugins().Keys)
+<CodeEditor @ref="_editor"
+            ContextType="@ContextType(CurrentScript.Topic)"
+            @bind-Value="CurrentScript.Source" />
+
+<table>
+  <tr>
+    <th>Plugin Name</th>
+    <th>Version</th>
+    <th>Status</th>
+  </tr>
+  @foreach (var plugin in _plugins)
+  {
+    var installed = IsPluginInstalled(plugin.Name);
+    <tr>
+      <td>@plugin.Name</td>
+      <td>@plugin.Version</td>
+      <td>
+        <button
+          @onclick="async () => await PluginService.DownloadAndInstallPluginAsync(plugin)"
+          disabled="@installed">@(installed ? "Installed" : "Install")</button>
+      </td>
+    </tr>
+  }
+</table>
 
 @code {
-  private string _scriptName = "test_script";
-  private string _currentKey = EventKey.StreamChatMessage;
+  private string _currentScriptName = string.Empty;
+  private List<UserScript> _scripts = [];
   private CodeEditor _editor = null!;
-
   private List<PluginManifest> _plugins = [];
+
+  private UserScript CurrentScript =>
+    _scripts.FirstOrDefault(s => s.ScriptId == _currentScriptName)
+    ?? _scripts.FirstOrDefault()
+    ?? new UserScript { Topic = EventKey.ManualInvoke, Source = DefaultText(EventKey.ManualInvoke)};
+
+  private Type ContextType(string eventKey) => typeof(ScriptContext<>).MakeGenericType(Events.KnownTypeRegistry[eventKey]);
+
+  private string EditableScriptId
+  {
+    get => CurrentScript.ScriptId;
+    set
+    {
+      if (string.IsNullOrWhiteSpace(value)) return;
+      CurrentScript.ScriptId = value;
+      _currentScriptName = value;
+    }
+  }
+  
+  private static string DefaultText(string eventKey) {
+    var properties = Events.KnownTypeRegistry[eventKey].GetProperties(BindingFlags.Public | BindingFlags.Instance)
+      .Select(info => info.Name);
+
+    List<string> defaultText =
+    [
+      $"// The globals are: {string.Join(", ", properties)}",
+      "// You can also use GetPlugin<TPlugin>() or GetPlugin(Type type)",
+      "List<string> test = [\"Hello\", \"World!\"];",
+      "Logger.LogInformation(string.Join(\" \", test));"
+    ];
+        
+    return string.Join("\n", defaultText);
+  }
+
+  private void AddNewScript()
+  {
+    var newScript = new UserScript
+    {
+      ScriptId = $"test_script-{Guid.NewGuid().ToString()[..8]}",
+      Topic = EventKey.ManualInvoke,
+      Source = DefaultText(EventKey.ManualInvoke)
+    };
+
+    _scripts.Add(newScript);
+    _currentScriptName = newScript.ScriptId;
+  }
 
   private bool IsPluginInstalled(string name) => PluginService.GetActivePlugins().ContainsKey(name);
 
   protected override async Task OnInitializedAsync()
   {
+    await using var dbContext = await ContextFactory.CreateDbContextAsync();
+    _scripts = await dbContext.UserScripts.AsNoTracking().ToListAsync(); 
     _plugins = await PluginService.FetchAllRegistryPluginsAsync();
+    if (_scripts.Count == 0)
+    {
+      AddNewScript();
+    }
   }
 
   private async Task SaveAndDeployScript()
   {
-    var code = await _editor.GetValueAsync();
-    await ScriptService.RegisterScriptAndBindToBusAsync(_currentKey, _scriptName, code);
+    if (_scripts.Count == 0) return;
+
+    CurrentScript.Source = await _editor.GetValueAsync();
+
+    await ScriptService.RegisterScriptAndBindToBusAsync(
+      CurrentScript.Topic,
+      CurrentScript.ScriptId,
+      CurrentScript.Source);
   }
 
   private async Task SendManualEvent()

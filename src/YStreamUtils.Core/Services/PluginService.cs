@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using YScriptEngine.Lsp.Roslyn;
 using YStreamUtils.Core.Data;
+using YStreamUtils.Core.Events;
 using YStreamUtils.Core.Models;
 using YStreamUtils.SDK.Plugin;
 using YStreamUtils.SDK.Registry;
@@ -19,7 +20,14 @@ using PluginSettings = YStreamUtils.Core.Entities.PluginSettings;
 
 namespace YStreamUtils.Core.Services;
 
-public class PluginService
+public class PluginService(
+    ILogger<PluginService> logger,
+    ILoggerFactory loggerFactory,
+    HttpClient httpClient,
+    IDbContextFactory<AppDbContext> contextFactory,
+    SettingsService settingsService,
+    IEventBus eventBus,
+    IServiceProvider hostProvider)
 {
     private readonly string _pluginDir = Path.Combine(Consts.ApplicationDataFolder, "plugins");
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -27,35 +35,6 @@ public class PluginService
     private ServiceProvider _activePlugins = new ServiceCollection().BuildServiceProvider();
     private readonly Dictionary<string, Plugin> _loadedPlugins = new();
     private readonly List<AssemblyLoadContext> _pluginContexts = [];
-    private readonly ILogger<PluginService> _logger;
-    private readonly ILoggerFactory _loggerFactory;
-    private readonly HttpClient _httpClient;
-    private readonly IDbContextFactory<AppDbContext> _contextFactory;
-    private readonly SettingsService _settingsService;
-    private readonly IServiceProvider _hostProvider;
-
-    public PluginService(ILogger<PluginService> logger,
-        ILoggerFactory loggerFactory,
-        HttpClient httpClient,
-        IDbContextFactory<AppDbContext> contextFactory,
-        SettingsService settingsService,
-        IServiceProvider hostProvider)
-    {
-        _logger = logger;
-        _loggerFactory = loggerFactory;
-        _httpClient = httpClient;
-        _contextFactory = contextFactory;
-        _settingsService = settingsService;
-        _hostProvider = hostProvider;
-
-        AssemblyLoadContext.Default.Resolving += (_, assemblyName) =>
-        {
-            return _pluginContexts
-                .SelectMany(ctx => ctx.Assemblies)
-                .FirstOrDefault(a =>
-                    string.Equals(a.GetName().Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase));
-        };
-    }
 
 
     public async Task DownloadAndInstallPluginAsync(PluginManifest manifest)
@@ -64,9 +43,9 @@ public class PluginService
         var downloadUrl =
             $"https://github.com/{manifest.Source.Owner}/{manifest.Source.Repository}/releases/download/{version}/{manifest.Name}.zip";
 
-        _logger.LogInformation("Streaming raw plugin binary file target asset: {Url}", downloadUrl);
+        logger.LogInformation("Streaming plugin binary file: {Url}", downloadUrl);
 
-        using var response = await _httpClient.GetAsync(downloadUrl);
+        using var response = await httpClient.GetAsync(downloadUrl);
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException($"HTTP bundle asset download failed status: {response.StatusCode}");
@@ -120,7 +99,7 @@ public class PluginService
 
                 if (dllFiles.Length == 0)
                 {
-                    _logger.LogError("No files found for folder: {FolderPath}", folderPath);
+                    logger.LogError("No files found for folder: {FolderPath}", folderPath);
                     continue;
                 }
 
@@ -135,7 +114,7 @@ public class PluginService
                 {
                     var enumerable = orderedDlls as string[] ?? [.. orderedDlls];
                     var primaryDll = enumerable.First();
-                    _logger.LogInformation("Loading primary assembly for: {Name}", primaryDll);
+                    logger.LogInformation("Loading primary assembly for: {Name}", primaryDll);
                     loadContext = new PluginLoadContext(folderName, primaryDll);
 
                     Assembly? pluginAssembly = null;
@@ -169,29 +148,26 @@ public class PluginService
                     if (entrypointType == null)
                         throw new InvalidDataException(
                             $"Entrypoint class implementing IPlugin missing inside {manifest.Name}.dll");
-
-                    var genericLoggerType = typeof(Logger<>).MakeGenericType(entrypointType);
-                    var pluginLogger = Activator.CreateInstance(genericLoggerType, _loggerFactory)!;
-
-                    var pluginInstance =
-                        (IPlugin)ActivatorUtilities.CreateInstance(_hostProvider, entrypointType);
                     
-                    _logger.LogInformation("Plugin {Plugin} instantiated, Initializing...", manifest.Name);
+                    var pluginInstance =
+                        (IPlugin)ActivatorUtilities.CreateInstance(hostProvider, entrypointType);
+                    
+                    logger.LogInformation("Plugin {Plugin} instantiated, Initializing...", manifest.Name);
                     await pluginInstance.InitializeAsync();
 
-                    var dbContext = await _contextFactory.CreateDbContextAsync();
+                    var dbContext = await contextFactory.CreateDbContextAsync();
                     var existingSettings = await dbContext.PluginSettings.FirstOrDefaultAsync(ps =>
                         ps.PluginName == manifest.Name);
                     if (existingSettings is not null)
                     {
-                        _logger.LogInformation("Existing settings found for {Plugin}, applying.", manifest.Name);
+                        logger.LogInformation("Existing settings found for {Plugin}, applying.", manifest.Name);
                         _ = pluginInstance.SettingsUpdatedAsync(existingSettings.SettingsJson);
                     }
                     else
                     {
                         if (attr.SettingsType is not null)
                         {
-                            _logger.LogInformation("No settings found for {Plugin}, creating from default", manifest.Name);
+                            logger.LogInformation("No settings found for {Plugin}, creating from default", manifest.Name);
                             var defaultSettings = Activator.CreateInstance(attr.SettingsType);
                             var serialized =
                                 JsonSerializer.Serialize(defaultSettings, Consts.IndentedSerializerOptions);
@@ -210,11 +186,11 @@ public class PluginService
                     _loadedPlugins.Add(manifest.Name, new Plugin(entrypointType, manifest, schemaNode));
                     _pluginContexts.Add(loadContext);
 
-                    _logger.LogInformation("Successfully instantiated Plugin: {Name}", manifest.Name);
+                    logger.LogInformation("Successfully instantiated Plugin: {Name}", manifest.Name);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed execution configuration for folder: {Dir}", folderName);
+                    logger.LogError(ex, "Failed execution configuration for folder: {Dir}", folderName);
                     loadContext?.Unload();
                 }
             }
@@ -224,8 +200,9 @@ public class PluginService
         finally
         {
             _lock.Release();
-            var lsp = _hostProvider.GetRequiredService<RoslynLspProvider>();
+            var lsp = hostProvider.GetRequiredService<RoslynLspProvider>();
             lsp.InvalidateCache();
+            await eventBus.PublishAsync(EventKey.PluginsChanged, new EmptyStruct());
         }
     }
 
@@ -252,7 +229,7 @@ public class PluginService
             throw new KeyNotFoundException($"Plugin {name} not found");
         }
 
-        using var dbContext = _contextFactory.CreateDbContext();
+        using var dbContext = contextFactory.CreateDbContext();
 
         var pluginSettings = dbContext.PluginSettings.FirstOrDefault(x => x.PluginName == plugin.Manifest.Name);
         return pluginSettings?.SettingsJson ?? "{}";
@@ -285,7 +262,7 @@ public class PluginService
             throw new ArgumentException($"Invalid plugin settings configuration. Errors: {errors}");
         }
 
-        using var dbContext = _contextFactory.CreateDbContext();
+        using var dbContext = contextFactory.CreateDbContext();
 
         var pluginSettings = dbContext.PluginSettings.First(x => x.PluginName == plugin.Manifest.Name);
         pluginSettings.SettingsJson = newSettings;
@@ -294,7 +271,7 @@ public class PluginService
 
     public async Task<List<PluginManifest>> FetchAllRegistryPluginsAsync()
     {
-        var registryUrls = _settingsService.GetSettings().PluginSettings.Repositories;
+        var registryUrls = settingsService.GetSettings().PluginSettings.Repositories;
         if (registryUrls == null || registryUrls.Count == 0)
         {
             throw new InvalidOperationException("No plugin registry repository endpoints are configured in settings.");
@@ -305,7 +282,7 @@ public class PluginService
 
         foreach (var url in registryUrls.Where(url => !string.IsNullOrWhiteSpace(url)))
         {
-            _logger.LogInformation("Querying plugin registry workspace source: {Url}", url);
+            logger.LogInformation("Querying plugin registry workspace source: {Url}", url);
             try
             {
                 var plugins = await FetchSingleRegistryAsync(url);
@@ -313,7 +290,7 @@ public class PluginService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Skipping failed registry destination pipeline context: {Url}", url);
+                logger.LogError(ex, "Skipping failed registry destination pipeline context: {Url}", url);
             }
         }
 
@@ -322,7 +299,7 @@ public class PluginService
 
     private async Task<List<PluginManifest>> FetchSingleRegistryAsync(string url)
     {
-        var distribution = await _httpClient.GetFromJsonAsync<RegistryDistribution>(url);
+        var distribution = await httpClient.GetFromJsonAsync<RegistryDistribution>(url);
         return distribution?.Plugins ?? [];
     }
 }

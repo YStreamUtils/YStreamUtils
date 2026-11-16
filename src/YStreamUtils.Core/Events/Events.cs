@@ -10,14 +10,25 @@ public static class Events
 {
     public static readonly Dictionary<string, Type> KnownTypeRegistry = new()
     {
+        // APPLICATION EVENTS
         { EventKey.All, typeof(object) },
         { EventKey.ApplicationLog, typeof(string) },
+        { EventKey.PluginsChanged, typeof(EmptyStruct) },
+        { EventKey.LibraryChanged, typeof(EmptyStruct) },
+        
+        // STREAM EVENTS
         { EventKey.StreamChatMessage, typeof(StreamEventEnvelope<StreamChatMessageEvent>) },
         { EventKey.YoutubeSuperChat, typeof(StreamEventEnvelope<StreamSuperChatMessageEvent>) },
         { EventKey.ManualInvoke, typeof(EmptyStruct) },
         { EventKey.StreamDiscovered, typeof(StreamEventEnvelope<StreamDiscoveredEvent>) },
         { EventKey.StreamRemoved, typeof(StreamEventEnvelope<StreamRemovedEvent>) },
         { EventKey.StreamMetrics, typeof(StreamEventEnvelope<StreamMetricsEvent>) },
+        
+        //AUDIO EVENTS
+        { EventKey.AudioPlay, typeof(AudioPlayPayload) },
+        { EventKey.AudioSkip, typeof(AudioClipEventPayload) },
+        { EventKey.AudioClear, typeof(AudioClipEventPayload) },
+        { EventKey.AudioEnded, typeof(AudioClipEventPayload) },
     };
 }
 
@@ -93,3 +104,9 @@ public readonly record struct StreamCheerMessageEvent(
 
 [UsedImplicitly]
 public readonly record struct StreamMetricsEvent(string VideoId, string Viewers) : IStreamEventData;
+
+[UsedImplicitly]
+public readonly record struct AudioPlayPayload(string ClipId, string AudioBase64);
+
+[UsedImplicitly]
+public readonly record struct AudioClipEventPayload(string ClipId);

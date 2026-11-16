@@ -1,0 +1,78 @@
+﻿@page "/library"
+@using Microsoft.CodeAnalysis
+@using YScriptEngine.Lsp.Roslyn
+@using YStreamUtils.Core.Services
+@using YStreamUtils.Web.Components.Shared
+@inject UserLibraryService LibraryService
+@inject RoslynLspProvider LspProvider
+@rendermode InteractiveServer
+
+<PageTitle>User Library</PageTitle>
+
+<h3>User Library</h3>
+<p>Supports classes, record, and extension methods available to all scripts.</p>
+<p>This file is loaded into an assembly included by default into scripts, you can put whatever in here.</p>
+
+<button @onclick="SaveLibrary">Save & Compile Library</button>
+
+@if (_saveSucceeded)
+{
+    <div class="alert alert-success mt-2">Library compiled and saved!</div>
+}
+
+@if (_compileErrors.Count > 0)
+{
+    <div class="alert alert-danger mt-2">
+        <strong>Compilation Failed:</strong>
+        <ul>
+            @foreach (var error in _compileErrors)
+            {
+                <li>@error</li>
+            }
+        </ul>
+    </div>
+}
+
+<CodeEditor @ref="_editor"
+            ContextType="@typeof(UserLibraryMarker)"
+            @bind-Value="_code" />
+
+@code {
+    private CodeEditor _editor = null!;
+    private string _code = string.Empty;
+    private bool _saveSucceeded;
+    private List<string> _compileErrors = [];
+
+    protected override void OnInitialized()
+    {
+        _code = LibraryService.SourceCode;
+    }
+
+    private async Task SaveLibrary()
+    {
+        _saveSucceeded = false;
+        _compileErrors.Clear();
+
+        _code = await _editor.GetValueAsync();
+
+        var result = await LibraryService.CompileAndSave(_code);
+
+        if (result is null || result.Success)
+        {
+            _saveSucceeded = true;
+            LspProvider.InvalidateCache();
+            return;
+        }
+
+        _compileErrors = result.Diagnostics
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .Select(d =>
+            {
+                var span = d.Location.GetLineSpan();
+                var line = span.StartLinePosition.Line + 1;
+                var col = span.StartLinePosition.Character + 1;
+                return $"Line {line}, Col {col} [{d.Id}]: {d.GetMessage()}";
+            })
+            .ToList();
+    }
+}
